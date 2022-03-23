@@ -14,7 +14,7 @@ from grafica.plotly_utils.utils import scatter_histogram # https://github.com/Se
 def hex_to_rgba(h, alpha):
     return tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha])
 
-def script_core(directory):
+def script_core(directory: Path):
 	John = Bureaucrat(
 		directory,
 		variables = locals(),

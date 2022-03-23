@@ -75,7 +75,7 @@ def binned_fit_langauss(samples, bins='auto', nan='remove'):
 	)
 	return popt, pcov, hist, bin_centers
 
-def script_core(directory, plot_waveforms=False):
+def script_core(directory: Path, plot_waveforms=False):
 	John = Bureaucrat(
 		directory,
 		variables = locals(),
