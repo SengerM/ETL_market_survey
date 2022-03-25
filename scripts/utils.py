@@ -8,3 +8,7 @@ def read_measurement_list(directory: Path):
 
 def get_voltage_from_measurement(name: str):
 	return name.split('_')[-1]
+
+def resample_measured_data(measured_data_df):
+	resampled_df = measured_data_df.groupby(by=['n_channel', 'n_position', 'Pad']).sample(frac=1, replace=True)
+	return resampled_df
