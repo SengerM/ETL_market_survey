@@ -29,7 +29,7 @@ def apply_cuts(data_df, cuts_df):
 	```
 	this function returns a series with the index `n_trigger` and the value
 	either `True` or `False` stating if such trigger satisfies ALL the
-	cuts at the same time. For example using the previous example a 
+	cuts at the same time. For example using the previous example a
 	trigger with charge 3e-12 and t_50 6.45e-8 will be `True` but if any
 	of the variables in any of the channels is outside the range, it will
 	be `False`.
@@ -80,22 +80,22 @@ def script_core(directory: Path, plot_waveforms=False):
 		directory,
 		variables = locals(),
 	)
-	
+
 	plots_dir_path = John.processed_data_dir_path/Path('plots')
 	plots_dir_path.mkdir(exist_ok=True, parents=True)
-	
-	cuts_file_path = John.measurement_base_path/Path('cuts.xlsx')
-	
+
+	cuts_file_path = John.measurement_base_path/Path('cuts.csv')
+
 	try:
 		measured_data_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.fd'))
 	except FileNotFoundError:
 		measured_data_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.csv'))
-	
+
 	with John.verify_no_errors_context():
 		try:
-			cuts_df = pandas.read_excel(cuts_file_path)
+			cuts_df = pandas.read_csv(cuts_file_path)
 			cuts_df.to_csv(John.processed_data_dir_path/Path(f'cuts.csv'))
-			
+
 			filtered_triggers_df = apply_cuts(measured_data_df, cuts_df)
 			filtered_triggers_df.reset_index().to_feather(John.processed_data_dir_path/Path('clean_triggers.fd'))
 		except FileNotFoundError:
@@ -107,8 +107,8 @@ def script_core(directory: Path, plot_waveforms=False):
 		except NameError:
 			measured_data_df['Accepted'] = True # Accept all triggers.
 		measured_data_df = measured_data_df.reset_index()
-		
-		
+
+
 		for column in measured_data_df:
 			if column in {'n_trigger','When','device_name','Accepted'}:
 				continue
@@ -123,7 +123,7 @@ def script_core(directory: Path, plot_waveforms=False):
 				marginal = 'rug',
 				hover_data = ['n_trigger'],
 			)
-			if 'collected charge' in column.lower(): # LANGAUSS FIT! 
+			if 'collected charge' in column.lower(): # LANGAUSS FIT!
 				fig = go.Figure()
 				fig.update_layout(
 					title = f'Langauss fit on "accepted events"<br><sup>Measurement: {John.measurement_name}</sup>',
@@ -135,7 +135,7 @@ def script_core(directory: Path, plot_waveforms=False):
 					_samples = measured_data_df.query('Accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
 					popt, _, hist, bin_centers = binned_fit_langauss(_samples)
 					this_channel_color = next(colors)
-					
+
 					fig.add_trace(
 						scatter_histogram(
 							samples = _samples,
@@ -197,12 +197,12 @@ def script_core(directory: Path, plot_waveforms=False):
 					str(plots_dir_path/Path(f'{column} ECDF.html')),
 					include_plotlyjs = 'cdn',
 				)
-			
+
 			histogram_fig.write_html(
 				str(plots_dir_path/Path(f'{column} histogram.html')),
 				include_plotlyjs = 'cdn',
 			)
-		
+
 		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - {'n_trigger','When','device_name','Accepted','Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'}
 		df = measured_data_df
 		fig = px.scatter_matrix(
@@ -234,21 +234,21 @@ def script_core(directory: Path, plot_waveforms=False):
 			str(John.processed_data_dir_path/Path('scatter_matrix.html')),
 			include_plotlyjs = 'cdn',
 		)
-	
+
 	# Plot waveforms ---
 	if plot_waveforms == True:
 		try:
 			waveforms_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('waveforms.fd'))
 		except FileNotFoundError:
 			waveforms_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('waveforms.csv'))
-		
+
 		waveforms_df = waveforms_df.set_index('n_trigger')
 		try:
 			waveforms_df['Accepted'] = filtered_triggers_df
 		except NameError:
 			waveforms_df['Accepted'] = True # Accept all triggers.
 		waveforms_df = waveforms_df.reset_index()
-		
+
 		fig = px.line(
 			waveforms_df,
 			title = f'Waveforms<br><sup>Measurement: {John.measurement_name}</sup>',
@@ -267,11 +267,11 @@ def script_core(directory: Path, plot_waveforms=False):
 			str(John.processed_data_dir_path/Path('waveforms.html')),
 			include_plotlyjs = 'cdn',
 		)
-		
+
 		accepted_status_for_the_plot = True
 		fig = make_subplots(
-			rows = 2, 
-			cols = 1, 
+			rows = 2,
+			cols = 1,
 			shared_xaxes = True,
 			vertical_spacing = 0.02,
 		)
@@ -289,13 +289,13 @@ def script_core(directory: Path, plot_waveforms=False):
 						x = df['Time (s)'],
 						y = df['Amplitude (V)'],
 						xbins = dict(
-							start = min(waveforms_df['Time (s)']), 
-							end = max(waveforms_df['Time (s)']), 
+							start = min(waveforms_df['Time (s)']),
+							end = max(waveforms_df['Time (s)']),
 							size = np.diff(sorted(set(waveforms_df['Time (s)'])))[0],
 						),
 						ybins = dict(
-							start = min(df['Amplitude (V)']), 
-							end = max(df['Amplitude (V)']), 
+							start = min(df['Amplitude (V)']),
+							end = max(df['Amplitude (V)']),
 							size = np.diff(sorted(set(df['Amplitude (V)'])))[0],
 						),
 						colorscale=[[0, 'rgba(0,0,0,0)'], [0.00000001, '#000096'], [.05, '#9300a3'], [.25, '#ff9500'], [1, '#ffffff']],
@@ -321,7 +321,7 @@ def script_core(directory: Path, plot_waveforms=False):
 			str(John.processed_data_dir_path/Path('waveforms_histogram.html')),
 			include_plotlyjs = 'cdn',
 		)
-	
+
 ########################################################################
 
 if __name__ == '__main__':
@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser(description='Cleans a beta scan according to some criterion.')
 	parser.add_argument('--dir',
-		metavar = 'path', 
+		metavar = 'path',
 		help = 'Path to the base measurement directory.',
 		required = True,
 		dest = 'directory',
