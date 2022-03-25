@@ -11,9 +11,6 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 		variables = locals(),
 	)
 
-	if force == False and Nísia.job_successfully_completed_by_script('this script'):
-		return
-
 	with Nísia.verify_no_errors_context():
 		if Nísia.job_successfully_completed_by_script('beta_scan.py'):
 			try:
