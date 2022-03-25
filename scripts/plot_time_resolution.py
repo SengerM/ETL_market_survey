@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from grafica.plotly_utils.utils import scatter_histogram
+import grafica
 from scipy.stats import median_abs_deviation
 from scipy.optimize import curve_fit
 
@@ -29,12 +30,12 @@ def calculate_Delta_t_df(data_df):
 	for col in {'n_trigger','n_pulse'}.union({f't_{i} (s)' for i in [10,20,30,40,50,60,70,80,90]}):
 		if col not in data_df.columns:
 			raise ValueError(f'{repr(col)} is not a column of `data_df`.')
-	
+
 	data_df = data_df.copy() # Don't want to touch the original...
 	data_df.set_index('n_trigger', inplace=True)
 	pulse_1_df = data_df.query(f'n_pulse==1')
 	pulse_2_df = data_df.query(f'n_pulse==2')
-	
+
 	Delta_t_df = pandas.DataFrame()
 	for k1 in [10,20,30,40,50,60,70,80,90]:
 		for k2 in [10,20,30,40,50,60,70,80,90]:
@@ -163,15 +164,15 @@ def plot_Delta_t_histogram(Delta_t_df, k1, k2):
 		samples = data_to_plot,
 	)
 	draw_median_and_MAD_vertical_lines(
-		plotlyfig = fig.plotly_figure, 
-		median = np.median(data_to_plot), 
+		plotlyfig = fig.plotly_figure,
+		median = np.median(data_to_plot),
 		MAD = median_abs_deviation(data_to_plot)
 	)
 	return fig
 
 def fit_gaussian_to_samples(samples, bins='auto'):
 	hist, bins_edges = np.histogram(
-		samples, 
+		samples,
 		bins = bins,
 	)
 	x_values = bins_edges[:-1] + np.diff(bins_edges)[0]/2
@@ -192,16 +193,16 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		directory,
 		variables = locals(),
 	)
-	
+
 	if force == False and John.job_successfully_completed_by_script('this script'): # If this was already done, don't do it again...
 		return
-	
+
 	with John.verify_no_errors_context():
 		try:
 			measured_data_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.fd'))
 		except FileNotFoundError:
 			measured_data_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.csv'))
-		
+
 		if John.job_successfully_completed_by_script('clean_beta_scan.py'): # If there was a cleaning done, let's take it into account...
 			df = pandas.read_feather(John.processed_by_script_dir_path('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
@@ -211,7 +212,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		else: # If there was no cleaning, we just accept all triggers...
 			measured_data_df['accepted'] = True
 		measured_data_df = measured_data_df.query('accepted==True') # From now on we drop all useless data.
-		
+
 		if len(set(measured_data_df['device_name'])) < 2:
 			raise RuntimeError(f'A time resolution calculation requires at least two devices, but this beta scan has {len(set(measured_data_df["device_name"]))} device/s.')
 		if len(set(measured_data_df['device_name'])) == 2:
@@ -222,29 +223,29 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			device_B = int(input(f'Enter name of second device: '))
 			devices_names = set([device_A, device_B])
 			measured_data_df = measured_data_df.loc[measured_data_df['device_name'].isin(devices_names)] # Discard all other devices.
-		
+
 		for idx,device_name in enumerate(devices_names): # This is so I can use the same framework as in the TCT where there is only one detector but two pulses.
 			measured_data_df.loc[measured_data_df['device_name']==device_name,'n_pulse'] = idx+1
-		
+
 		final_results_df = pandas.DataFrame()
 		bootstrapped_replicas_df = pandas.DataFrame()
 		for k_bootstrap in range(n_bootstrap+1):
-			
+
 			bootstrapped_iteration = False
 			if k_bootstrap > 0:
 				bootstrapped_iteration = True
-			
+
 			if bootstrapped_iteration == False:
 				data_df = measured_data_df.copy()
 			else:
 				data_df = resample_measured_data(measured_data_df)
-			
+
 			Delta_t_df = calculate_Delta_t_df(data_df)
 			Delta_t_fluctuations_df = calculate_Delta_t_fluctuations_df(Delta_t_df)
 			best_k1k2 = find_best_k1_k2(Delta_t_fluctuations_df)
 			fitted_mu, fitted_sigma, fitted_amplitude = fit_gaussian_to_samples(Delta_t_df.set_index(['k_1 (%)','k_2 (%)']).loc[best_k1k2,'Δt (s)'])
 			std = Delta_t_df.set_index(['k_1 (%)','k_2 (%)']).loc[best_k1k2,'Δt (s)'].std()
-			
+
 			bootstrapped_replicas_df = bootstrapped_replicas_df.append(
 				{
 					'k MAD(Δt) (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
@@ -257,7 +258,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			)
 			if bootstrapped_iteration == True:
 				continue
-			
+
 			# If we are here it is because we are not in a bootstrap iteration, it is the first iteration that is with the actual data.
 			final_results_df = final_results_df.append(
 				{
@@ -270,13 +271,13 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 				},
 				ignore_index = True,
 			)
-			
+
 			fig = plot_cfd(Delta_t_fluctuations_df)
 			fig.update_layout(
 				title = f'Time resolution vs CFD thresholds<br><sup>Measurement: {John.measurement_name}</sup>'
 			)
 			fig.write_html(str(John.processed_data_dir_path/Path(f'CFD_plot.html')), include_plotlyjs = 'cdn')
-			
+
 			fig = go.Figure()
 			fig.update_layout(
 				yaxis_title = 'Number of events',
@@ -306,12 +307,12 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 				# ~ text = f"k MAD(Δt) = {Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)']*1e12:.2f} ps",
 			# ~ )
 			fig.write_html(
-				str(John.processed_data_dir_path/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')), 
+				str(John.processed_data_dir_path/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')),
 				include_plotlyjs = 'cdn',
 			)
-		
+
 		bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']] = bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']].astype(int)
-		
+
 		bootstrapped_replicas_df_file_path = John.processed_data_dir_path/Path('bootstrap_results.csv')
 		if bootstrapped_replicas_df_file_path.is_file():
 			bootstrapped_replicas_df = bootstrapped_replicas_df.append(
@@ -319,14 +320,14 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 				ignore_index = True,
 			)
 		bootstrapped_replicas_df.to_csv(bootstrapped_replicas_df_file_path, index=False)
-		
+
 		stuff_to_append = dict(bootstrapped_replicas_df.std())
 		stuff_to_append['type'] = 'std of the bootstrapped replicas'
 		final_results_df = final_results_df.append(
 			stuff_to_append,
 			ignore_index = True,
 		)
-		
+
 		fig = go.Figure()
 		fig.update_layout(
 			title = f'Bootstrap replicas of k MAD(Δt)<br><sup>Measurement: {John.measurement_name}</sup>',
@@ -345,16 +346,16 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			str(John.processed_data_dir_path/Path(f'histogram bootstrap.html')),
 			include_plotlyjs = 'cdn',
 		)
-		
+
 		final_results_df.to_csv(John.processed_data_dir_path/Path('results.csv'), index=False)
 
 if __name__ == '__main__':
 	import argparse
-	
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument(
 		'--dir',
-		metavar = 'path', 
+		metavar = 'path',
 		help = 'Path to the base directory of a measurement. If "all", the script is applied to all linear scans.',
 		required = True,
 		dest = 'directory',
