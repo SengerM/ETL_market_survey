@@ -31,7 +31,7 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 				{
 					'Collected charge (V s) x_mpv': float(df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to data"')['Value']),
 					'Measurement name': measurement_name,
-					'Bias voltage (V)': get_voltage_from_measurement(measurement_name),
+					'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
 					'Fluence (neq/cm^2)/1e14': 0,
 				},
 				ignore_index = True,
