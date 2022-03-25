@@ -1,0 +1,7 @@
+{
+    "python.analysis.extraPaths": [
+        "./scripts",
+        "./scripts/env/bin",
+        "./scripts/env/lib/python3.9/site-packages"
+    ]
+}
