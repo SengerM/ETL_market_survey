@@ -23,7 +23,7 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			measured_data_df = measured_data_df.loc[measured_data_df['device_name']==dut_name]
 
 			fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02)
-			fig.update_layout(title = "Measurement: {}".format(Nísia.measurement_name))
+			fig.update_layout(title =  "Current/Voltage vs time with beta source<br><sup>Measurement: {Nísia.measurement_name}</sup>")
 			for row_minus_one, variable in enumerate(['Bias current (A)', 'Bias voltage (V)']):
 				fig.add_trace(
 					go.Scatter(
