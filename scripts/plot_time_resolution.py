@@ -18,7 +18,7 @@ def resample_measured_data(measured_data_df):
 	resampled_df = measured_data_df.pivot(
 		index = 'n_trigger',
 		columns = 'device_name',
-		values = set(measured_data_df.columns) - {'n_trigger','device_name'},
+		values = list(set(measured_data_df.columns) - {'n_trigger','device_name'}),
 	)
 	resampled_df = resampled_df.sample(frac=1, replace=True)
 	resampled_df = resampled_df.stack()
@@ -45,7 +45,7 @@ def calculate_Delta_t_df(data_df):
 			temp_df['k_2 (%)'] = k2
 			temp_df.reset_index(inplace=True)
 			temp_df.set_index(['n_trigger','k_1 (%)','k_2 (%)'], inplace=True)
-			Delta_t_df = Delta_t_df.append(temp_df)
+			Delta_t_df = pandas.concat([Delta_t_df, temp_df])
 	Delta_t_df.reset_index(inplace=True)
 	Delta_t_df = Delta_t_df.dropna()
 	return Delta_t_df
@@ -211,7 +211,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			measured_data_df = measured_data_df.reset_index()
 		else: # If there was no cleaning, we just accept all triggers...
 			measured_data_df['accepted'] = True
-		measured_data_df = measured_data_df.query('accepted==True') # From now on we drop all useless data.
+		measured_data_df = measured_data_df.query('accepted==True').copy() # From now on we drop all useless data.
 
 		if len(set(measured_data_df['device_name'])) < 2:
 			raise RuntimeError(f'A time resolution calculation requires at least two devices, but this beta scan has {len(set(measured_data_df["device_name"]))} device/s.')
@@ -227,8 +227,8 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		for idx,device_name in enumerate(devices_names): # This is so I can use the same framework as in the TCT where there is only one detector but two pulses.
 			measured_data_df.loc[measured_data_df['device_name']==device_name,'n_pulse'] = idx+1
 
-		final_results_df = pandas.DataFrame()
-		bootstrapped_replicas_df = pandas.DataFrame()
+		final_results_data = []
+		bootstrapped_replicas_data = []
 		for k_bootstrap in range(n_bootstrap+1):
 
 			bootstrapped_iteration = False
@@ -246,21 +246,20 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			fitted_mu, fitted_sigma, fitted_amplitude = fit_gaussian_to_samples(Delta_t_df.set_index(['k_1 (%)','k_2 (%)']).loc[best_k1k2,'Δt (s)'])
 			std = Delta_t_df.set_index(['k_1 (%)','k_2 (%)']).loc[best_k1k2,'Δt (s)'].std()
 
-			bootstrapped_replicas_df = bootstrapped_replicas_df.append(
+			bootstrapped_replicas_data.append(
 				{
 					'k MAD(Δt) (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
 					'std (s)': std,
 					'sigma from Gaussian fit (s)': fitted_sigma,
 					'k_1 (%)': best_k1k2[0],
 					'k_2 (%)': best_k1k2[1],
-				},
-				ignore_index = True,
+				}
 			)
 			if bootstrapped_iteration == True:
 				continue
 
 			# If we are here it is because we are not in a bootstrap iteration, it is the first iteration that is with the actual data.
-			final_results_df = final_results_df.append(
+			final_results_data.append(
 				{
 					'k MAD(Δt) (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
 					'std (s)': std,
@@ -268,8 +267,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 					'k_1 (%)': best_k1k2[0],
 					'k_2 (%)': best_k1k2[1],
 					'type': 'estimator value on the data',
-				},
-				ignore_index = True,
+				}
 			)
 
 			fig = plot_cfd(Delta_t_fluctuations_df)
@@ -311,22 +309,25 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 				include_plotlyjs = 'cdn',
 			)
 
+		bootstrapped_replicas_df = pandas.DataFrame.from_records(bootstrapped_replicas_data)
+
 		bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']] = bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']].astype(int)
 
 		bootstrapped_replicas_df_file_path = John.processed_data_dir_path/Path('bootstrap_results.csv')
 		if bootstrapped_replicas_df_file_path.is_file():
-			bootstrapped_replicas_df = bootstrapped_replicas_df.append(
-				pandas.read_csv(bootstrapped_replicas_df_file_path),
+			bootstrapped_replicas_df = pandas.concat(
+				[
+					bootstrapped_replicas_df,
+					pandas.read_csv(bootstrapped_replicas_df_file_path)
+				],
 				ignore_index = True,
 			)
 		bootstrapped_replicas_df.to_csv(bootstrapped_replicas_df_file_path, index=False)
 
 		stuff_to_append = dict(bootstrapped_replicas_df.std())
 		stuff_to_append['type'] = 'std of the bootstrapped replicas'
-		final_results_df = final_results_df.append(
-			stuff_to_append,
-			ignore_index = True,
-		)
+		final_results_data.append(stuff_to_append)
+		final_results_df = pandas.DataFrame.from_records(final_results_data)
 
 		fig = go.Figure()
 		fig.update_layout(

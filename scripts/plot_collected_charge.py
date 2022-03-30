@@ -44,7 +44,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			yaxis_title = 'Probability density',
 		)
 		colors = iter(px.colors.qualitative.Plotly)
-		results_df = pandas.DataFrame()
+		results_data = []
 		for n_bootstrap_iter in range(n_bootstrap+1):
 			if n_bootstrap_iter > 0:
 				raise NotImplementedError(f'Cannot perform bootstrap at the moment, there is a strange error in Pandas and I dont have time to fix now.')
@@ -52,14 +52,13 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			for device_name in sorted(set(measured_data_df['device_name'])):
 				samples_to_fit = this_iteration_data_df.query('accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
 				popt, _, hist, bin_centers = binned_fit_langauss(samples_to_fit)
-				results_df = results_df.append(
+				results_data.append(
 					{
 						'Variable': 'Collected charge (V s) x_mpv',
 						'Device name': device_name,
 						'Value': popt[0],
 						'Type': 'fit to data' if n_bootstrap_iter == 0 else 'bootstrapped fit to resampled data',
-					},
-					ignore_index = True,
+					}
 				)
 
 				if n_bootstrap_iter == 0:
@@ -93,6 +92,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 							legendgroup = device_name,
 						)
 					)
+		results_df = pandas.DataFrame.from_records(results_data)
 		fig.write_html(
 			str(Abraão.processed_data_dir_path/Path(f'langauss fit.html')),
 			include_plotlyjs = 'cdn',
