@@ -18,8 +18,8 @@ def script_core(directory: Path, force: bool=False):
 	if force == False and Teutónio.job_successfully_completed_by_script('this script'):
 		return
 
-	time_resolution_df = pandas.DataFrame()
 	with Teutónio.verify_no_errors_context():
+		time_resolution_data = []
 		for measurement_name in read_measurement_list(Teutónio.measurement_base_path):
 			if not (Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('plot_time_resolution/.script_successfully_applied')).is_file():
 				warnings.warn(f"Time Resolution was not successfully completed for {measurement_name}")
@@ -34,16 +34,17 @@ def script_core(directory: Path, force: bool=False):
 				this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
 			except FileNotFoundError:
 				this_measurement_error = float('NaN')
-			time_resolution_df = time_resolution_df.append(
+			time_resolution_data.append(
 				{
 					'sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['sigma from Gaussian fit (s)'])[0]),
 					'sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
 					'Measurement name': measurement_name,
 					'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
 					'Fluence (neq/cm^2)/1e14': 0,
-				},
-				ignore_index = True,
+				}
 			)
+
+		time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
 
 		REFERENCE_TIME_RESOLUTION = 35.8e-12 # Speedy Gonzalez 12 Time Resolution
 		time_resolution_df['Time resolution (s)'] = (time_resolution_df['sigma from Gaussian fit (s)']**2 - REFERENCE_TIME_RESOLUTION**2)**.5

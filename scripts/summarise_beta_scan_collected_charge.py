@@ -16,8 +16,8 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 	if force == False and Vitorino.job_successfully_completed_by_script('this script'):
 		return
 
-	collected_charge_df = pandas.DataFrame()
 	with Vitorino.verify_no_errors_context():
+		collected_charge_data = []
 		for measurement_name in read_measurement_list(Vitorino.measurement_base_path):
 			if not (Vitorino.measurement_base_path.parent/Path(measurement_name)/Path('plot_collected_charge/.script_successfully_applied')).is_file():
 				warnings.warn(f"Collected Charge plotter was not successfully completed for {measurement_name}")
@@ -27,15 +27,15 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			except FileNotFoundError:
 				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}')
 				continue
-			collected_charge_df = collected_charge_df.append(
+			collected_charge_data.append(
 				{
 					'Collected charge (V s) x_mpv': float(df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to data"')['Value']),
 					'Measurement name': measurement_name,
 					'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
 					'Fluence (neq/cm^2)/1e14': 0,
-				},
-				ignore_index = True,
+				}
 			)
+		collected_charge_df = pandas.DataFrame.from_records(collected_charge_data)
 
 		df = collected_charge_df.sort_values(by='Bias voltage (V)')
 		fig = plotly_utils.line(

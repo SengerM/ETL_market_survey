@@ -40,7 +40,7 @@ def apply_cuts(data_df, cuts_df):
 	data_df = data_df.pivot(
 		index = 'n_trigger',
 		columns = 'device_name',
-		values = set(data_df.columns) - {'device_name'},
+		values = list(set(data_df.columns) - {'device_name'}),
 	)
 	triggers_accepted_df = pandas.DataFrame({'accepted': True}, index=data_df.index)
 	for idx, cut_row in cuts_df.iterrows():
