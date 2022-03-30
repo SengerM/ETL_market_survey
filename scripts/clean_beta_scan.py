@@ -49,7 +49,7 @@ def apply_cuts(data_df, cuts_df):
 		elif cut_row['cut type'] == 'higher':
 			triggers_accepted_df['accepted'] &= data_df[(cut_row['variable'],cut_row['device_name'])] <= cut_row['cut value']
 		else:
-			raise ValueError(f'Received a cut of type `cut type={cut_type}`, dont know that that is...')
+			raise ValueError('Received a cut of type `cut type={}`, dont know that that is...'.format(cut_row['cut_type']))
 	return triggers_accepted_df
 
 def binned_fit_langauss(samples, bins='auto', nan='remove'):
