@@ -32,7 +32,7 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			print("Running on {}".format(measurement_name))
 
 			print("  Plotting the I/V over time")
-			plot_power_supply(Adérito.measurement_base_path.parent/Path(measurement_name), dut_name)
+			plot_power_supply(Adérito.measurement_base_path.parent/Path(measurement_name), dut_name, force=force)
 
 			print("  Making all the individual plots for the beta timing point")
 			plot_everything_beta_point(Adérito.measurement_base_path.parent/Path(measurement_name))
@@ -42,10 +42,10 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 				clean_beta_scan(Adérito.measurement_base_path.parent/Path(measurement_name))
 
 			print("  Creating the timing plots")
-			plot_time_resolution(Adérito.measurement_base_path.parent/Path(measurement_name), force=force)
+			plot_time_resolution(Adérito.measurement_base_path.parent/Path(measurement_name), n_bootstrap=33, force=force)
 
 			print("  Creating the dedicated collected charge plots")
-			plot_collected_charge(Adérito.measurement_base_path.parent/Path(measurement_name))
+			plot_collected_charge(Adérito.measurement_base_path.parent/Path(measurement_name), force=force)
 
 
 if __name__ == '__main__':
