@@ -14,6 +14,8 @@ from scipy.optimize import curve_fit
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
 from plotly.subplots import make_subplots
 
+SET_OF_COLUMNS_TO_IGNORE = {'n_waveform','n_trigger','When','device_name','Accepted'}
+
 def hex_to_rgba(h, alpha):
     return tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha])
 
@@ -110,7 +112,7 @@ def script_core(directory: Path, plot_waveforms=False):
 
 
 		for column in measured_data_df:
-			if column in {'n_trigger','When','device_name','Accepted'}:
+			if column in SET_OF_COLUMNS_TO_IGNORE:
 				continue
 			histogram_fig = px.histogram(
 				measured_data_df,
@@ -203,7 +205,7 @@ def script_core(directory: Path, plot_waveforms=False):
 				include_plotlyjs = 'cdn',
 			)
 
-		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - {'n_trigger','When','device_name','Accepted','Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'}
+		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {'Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'}
 		df = measured_data_df
 		fig = px.scatter_matrix(
 			df,
