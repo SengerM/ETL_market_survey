@@ -155,38 +155,41 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 			)
 			x_50_percent[pad] = float(inverted_erf(.5))
 		multiply_distance_by_this_scale_factor_to_fix_calibration = window_size/((x_50_percent['left']-x_50_percent['right'])**2)**.5
-		with open(Iñaqui.processed_data_dir_path/Path('scale_factor.txt'), 'w') as ofile:
+		offset_before_scale_factor_multiplication = ((x_50_percent['left']+x_50_percent['right'])**2)**.5/2
+		with open(Iñaqui.processed_data_dir_path/Path('distance_calibration.txt'), 'w') as ofile:
 			print(f'multiply_distance_by_this_scale_factor_to_fix_calibration = {multiply_distance_by_this_scale_factor_to_fix_calibration}', file=ofile)
+			print(f'offset_before_scale_factor_multiplication = {offset_before_scale_factor_multiplication}', file=ofile)
 		
-		for distance_col in {'Distance (m)'}:
+		data_df['Distance from center (m)'] = data_df['Distance (m)'] - offset_before_scale_factor_multiplication
+		for distance_col in {'Distance (m)','Distance from center (m)'}:
 			data_df[f'{distance_col} calibrated'] = data_df[distance_col]*multiply_distance_by_this_scale_factor_to_fix_calibration
 		fig = line(
-			data_frame = utils.mean_std(data_df, by=['n_position','Pad', 'Distance (m) calibrated']),
-			x = 'Distance (m) calibrated',
+			data_frame = utils.mean_std(data_df, by=['n_position','Pad', 'Distance (m) calibrated', 'Distance from center (m) calibrated']),
+			x = f'Distance from center (m) calibrated',
 			y = 'Normalized collected charge median',
 			error_y = 'Normalized collected charge MAD_std',
 			error_y_mode = 'band',
 			color = 'Pad',
 			markers = '.',
-			title = f'Scan after applying the calibration factor (x←{multiply_distance_by_this_scale_factor_to_fix_calibration:.2e}×x)<br><sup>Measurement: {Iñaqui.measurement_name}</sup>',
+			title = f'Scan after applying the calibration factor (x←{multiply_distance_by_this_scale_factor_to_fix_calibration:.2e}×(x-{offset_before_scale_factor_multiplication:.2e}))<br><sup>Measurement: {Iñaqui.measurement_name}</sup>',
 			labels = LABELS_FOR_PLOTS,
 		)
 		for pad in results.index:
 			if pad == 'left':
-				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/4,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/4,f'Distance from center (m) calibrated']
 			else:
-				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/4,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/4,f'Distance from center (m) calibrated']
 			x = np.linspace(min(df), max(df), 99)
 			fig.add_trace(
 				go.Scatter(
 					x = x*multiply_distance_by_this_scale_factor_to_fix_calibration,
-					y = fit_results[pad].eval(params=fit_results[pad].params, x = x),
+					y = fit_results[pad].eval(params=fit_results[pad].params, x = x+offset_before_scale_factor_multiplication),
 					mode = 'lines',
 					name = f'Fit erf {pad} pad',
 					line = dict(color='black', dash='dash'),
 				)
 			)
-		fig.write_html(str(Iñaqui.processed_data_dir_path/Path(f'after_calibration.html')), include_plotlyjs = 'cdn')
+		fig.write_html(str(Iñaqui.processed_data_dir_path/Path(f'after offset subtraction and calibration.html')), include_plotlyjs = 'cdn')
 
 if __name__ == '__main__':
 	import argparse

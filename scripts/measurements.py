@@ -182,27 +182,32 @@ class MeasurementHandler:
 		return self._inter_pixel_distance_summary
 	
 	@property
-	def distance_calibration_factor(self):
+	def distance_calibration(self):
 		"""Returns the distance calibration factor produced by the "fit
 		ERF" script if it makes sense for this type of measurement and
 		if it was calculated beforehand. Otherwise, rises error.
 		"""
-		if not hasattr(self, '_distance_calibration_factor'):
+		if not hasattr(self, '_distance_calibration'):
 			if self.measurement_type == 'TCT 1D scan fixed voltage':
 				try:
-					with open(MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/scale_factor.txt'),'r') as ifile:
+					with open(MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/distance_calibration.txt'),'r') as ifile:
 						for line in ifile:
 							if 'multiply_distance_by_this_scale_factor_to_fix_calibration = ' in line:
 								distance_calibration_factor = float(line.split(' = ')[-1])
+							if 'offset_before_scale_factor_multiplication = ' in line:
+								offset_factor = float(line.split(' = ')[-1])
 				except (FileNotFoundError, ValueError):
 					pass
 				_locals_now = locals()
-				if 'distance_calibration_factor' not in _locals_now or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file():
+				if any([must_be_in_locals not in _locals_now for must_be_in_locals in {'distance_calibration_factor','offset_factor'}]) or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file():
 					raise RuntimeError(f'No information (or no reliable information) about the distance calibration factor could be found for measurement {self.measurement_name}.')
-				self._distance_calibration_factor = distance_calibration_factor
+				self._distance_calibration = {
+					'scale factor': distance_calibration_factor, 
+					'offset before scale': offset_factor
+				}
 			else:
 				raise NotImplementedError(f'Dont know how to get a distance calibration factor for measurement of type {repr(self.measurement_type)}.')	
-		return self._distance_calibration_factor
+		return self._distance_calibration
 	
 if __name__ == '__main__':
 	MEASUREMENTS = {

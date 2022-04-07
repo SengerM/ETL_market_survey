@@ -103,13 +103,14 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 			# Here we are sure that things were calculated, so now we can put everything together ---
 			measurement_handler = measurements.MeasurementHandler(measurement_name)
 			measurement_handler.measurement_data['measurement_name'] = measurement_name
+			measurement_handler.measurement_data['Distance from center (m)'] = measurement_handler.measurement_data['Distance (m)'] - measurement_handler.distance_calibration['offset before scale']
 			
 			this_measurement_stuff = {
 				'Bias voltage (V) median': np.abs(measurement_handler.bias_voltage_summary['median']),
 				'Bias voltage (V) MAD_std': measurement_handler.bias_voltage_summary['MAD_std'],
 				'Inter-pixel distance (m)': measurement_handler.inter_pixel_distance_summary['Inter-pixel distance (m) value on data'],
 				'Inter-pixel distance (m) MAD_std': measurement_handler.inter_pixel_distance_summary['Inter-pixel distance (m) MAD_std'],
-				'Distance calibration factor': measurement_handler.distance_calibration_factor,
+				'Distance scale factor': measurement_handler.distance_calibration['scale factor'],
 				'measurement_name': measurement_name,
 			}
 			data_df = pandas.concat([data_df, pandas.DataFrame(this_measurement_stuff, index=[0])], ignore_index = True)
@@ -124,7 +125,7 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 		
 		data_df = data_df.sort_values(by='Bias voltage (V) median')
 		for col in {'Inter-pixel distance (m)','Inter-pixel distance (m) MAD_std'}:
-			data_df[f'{col} calibrated'] = data_df[col]*data_df['Distance calibration factor']
+			data_df[f'{col} calibrated'] = data_df[col]*data_df['Distance scale factor']
 		
 		data_df.to_csv(Adérito.processed_data_dir_path/Path('inter_pixel_distance_vs_bias_voltage.csv'))
 		
@@ -154,13 +155,17 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 		scans_1D = scans_1D.set_index('measurement_name')
 		data_df = data_df.set_index('measurement_name')
 		scans_1D['Bias voltage (V)'] = data_df['Bias voltage (V) median'].astype(int)
+		for var in {'Distance from center (m)','Distance (m)'}:
+			for stat in {'mean','std','median','MAD_std'}:
+				col = f'{var} {stat}'
+				scans_1D[f'{col} calibrated'] = scans_1D[col]*data_df['Distance scale factor']
 		scans_1D = scans_1D.reset_index()
 		scans_1D = scans_1D.sort_values(by=['Bias voltage (V)','Pad','Distance (m) mean'])
 		for variable in {'Collected charge (V s)','Normalized collected charge','t_50 (s)','Amplitude (V)','Noise (V)','Rise time (s)','Time over noise (s)'}:
 			fig = line(
 				title = f'{variable} vs position for different voltages<br><sup>Measurement: {Adérito.measurement_name}</sup>',
 				data_frame = scans_1D,
-				x = 'Distance (m) mean',
+				x = 'Distance from center (m) mean calibrated',
 				y = f'{variable} median',
 				error_y = f'{variable} MAD_std',
 				error_y_mode = 'band',
@@ -171,8 +176,11 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 				labels = {
 					f'{variable} median': variable,
 					'Distance (m) mean': 'Distance (m)',
+					'Distance from center (m) mean calibrated': 'Distance from center after calibration (m)',
 				}
 			)
+			for x in [-window_size/2, window_size/2]:
+				fig.add_vline(x = x, line_dash='dash')
 			fig.write_html(
 				str(DIRECTORY_FOR_SCAN_PLOTS/Path(f'{variable} vs distance vs bias voltage.html')),
 				include_plotlyjs = 'cdn',
