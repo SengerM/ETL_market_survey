@@ -2,12 +2,14 @@ import pandas
 import utils
 from scipy import special
 from lmfit import Model
-from data_processing_bureaucrat.Bureaucrat import Bureaucrat
+from bureaucrat.Bureaucrat import Bureaucrat
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from scipy import interpolate
+import measurements
+from grafica.plotly_utils.utils import line
 
 def metal_silicon_transition_model_function_left_pad(x, y_scale, laser_sigma, x_offset, y_offset):
 	return y_scale*special.erf((x-x_offset)/laser_sigma*2**.5) + y_offset
@@ -15,8 +17,11 @@ def metal_silicon_transition_model_function_left_pad(x, y_scale, laser_sigma, x_
 def metal_silicon_transition_model_function_right_pad(x, y_scale, laser_sigma, x_offset, y_offset):
 	return metal_silicon_transition_model_function_left_pad(-x, y_scale, laser_sigma, -x_offset, y_offset)
 
-def fit_erf(df, windows_size=130e-6):
-	"""Given a df with data from a single 1D scan, this function fits an erf (convolution of Gaussian and step) to each metal-silicon interface. Returns the fit result object by lmfit, one for each pad (left and right)."""
+def fit_erf(df, windows_size):
+	"""Given a df with data from a single 1D scan, this function fits an
+	erf (convolution of Gaussian and step) to each metal-silicon interface. 
+	Returns the fit result object by lmfit, one for each pad (left and right).
+	"""
 	
 	df = df.loc[df['n_pulse']==1] # Use only pulse 1 for this.
 	df = df.loc[df['Distance (m)'].notna()] # Drop rows that have NaN values in the relevant columns.
@@ -28,16 +33,16 @@ def fit_erf(df, windows_size=130e-6):
 	for pad in set(df['Pad']):
 		this_pad_df = df.loc[df['Pad']==pad]
 		if pad == 'left':
-			x_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']<this_pad_df['Distance (m)'].mean()-windows_size/2, 'Distance (m)']
-			y_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']<this_pad_df['Distance (m)'].mean()-windows_size/2, 'Normalized collected charge']
+			x_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']<this_pad_df['Distance (m)'].mean()-windows_size/5, 'Distance (m)']
+			y_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']<this_pad_df['Distance (m)'].mean()-windows_size/5, 'Normalized collected charge']
 			fit_model = fit_model_left_pad
 		elif pad == 'right':
-			x_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']>this_pad_df['Distance (m)'].mean()+windows_size/2, 'Distance (m)']
-			y_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']>this_pad_df['Distance (m)'].mean()+windows_size/2, 'Normalized collected charge']
+			x_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']>this_pad_df['Distance (m)'].mean()+windows_size/5, 'Distance (m)']
+			y_data_for_fit = this_pad_df.loc[this_pad_df['Distance (m)']>this_pad_df['Distance (m)'].mean()+windows_size/5, 'Normalized collected charge']
 			fit_model = fit_model_right_pad
 		parameters = fit_model.make_params(
 			laser_sigma = 10e-6,
-			x_offset = this_pad_df['Distance (m)'].mean()-windows_size if pad=='left' else this_pad_df['Distance (m)'].mean()+windows_size, # Transition metal→silicon in the left pad.
+			x_offset = this_pad_df['Distance (m)'].mean()-windows_size/2 if pad=='left' else this_pad_df['Distance (m)'].mean()+windows_size/2, # Transition metal→silicon in the left pad.
 			y_scale = 1/2,
 			y_offset = 1/2,
 		)
@@ -47,24 +52,47 @@ def fit_erf(df, windows_size=130e-6):
 		fit_results[pad] = fit_model.fit(y_data_for_fit, parameters, x=x_data_for_fit)
 	return fit_results
 
-def script_core(measurement_name: str, window_size=125e-6, force=False):
+def script_core(directory:Path, window_size:float, force:bool=False):
+	"""Fit an ERF function to each side where the interfaces between silicon
+	and metal are supposed to be (1D linear TCT scan).
+	
+	Parameters
+	----------
+	directory: Path
+		Path to the main directory of a measurement.
+	window_size: float
+		Size of the window to shine the laser through the metalization
+		of the device, in meters. This is the distance between the two
+		interfaces metal→silicon (left pixel) and silicon→metal (right 
+		pixel).
+	force: bool, default False
+		If `True` the function is applied, if `False` it is only applied
+		if it was not applied before.
+	"""
 	Iñaqui = Bureaucrat(
-		utils.path_to_measurements_directory/Path(measurement_name),
+		directory,
 		new_measurement = False,
 		variables = locals(),
 	)
+	measurement_handler = measurements.MeasurementHandler(Iñaqui.measurement_name)
+	
+	if measurement_handler.measurement_type != 'TCT 1D scan fixed voltage':
+		raise ValueError(f'Measurement {repr(Iñaqui.measurement_name)} must be a "TCT 1D scan fixed voltage", but it is of type {repr(measurement_handler.measurement_type)}')
 	
 	if force == False and Iñaqui.job_successfully_completed_by_script('this script'):
 		return
 	
 	with Iñaqui.verify_no_errors_context():
-		data_df = utils.read_and_pre_process_1D_scan_data(measurement_name)
+		measurement_handler.tag_left_and_right_pads()
 		
-		if 'Pad' not in df.columns:
-			pads_df = utils.tag_left_right_pad(data_df)
-			data_df['Pad'] = pads_df['Pad']
-		if 'Normalized collected charge' not in df.columns:
-			df = utils.calculate_normalized_collected_charge(data_df)
+		if 'Normalized collected charge' not in measurement_handler.measurement_data.columns:
+			normalized_charge_df = utils.calculate_normalized_collected_charge(
+				measurement_handler.measurement_data,
+				window_size = window_size,
+			)
+			measurement_handler.measurement_data['Normalized collected charge'] = normalized_charge_df['Normalized collected charge']
+		
+		data_df = measurement_handler.measurement_data # Shorthand notation...
 		
 		fit_results = fit_erf(data_df, windows_size=window_size)
 		results = pandas.DataFrame(columns = ['Pad'])
@@ -76,11 +104,11 @@ def script_core(measurement_name: str, window_size=125e-6, force=False):
 			results.loc[pad,'y_scale'] = fit_results[pad].params['y_scale'].value
 		results.to_csv(Iñaqui.processed_data_dir_path/Path('fit_results.csv'))
 		
-		fig = utils.line(
+		fig = line(
 			data_frame = utils.mean_std(data_df, by=['n_position','Pad', 'Distance (m)']),
 			x = 'Distance (m)',
-			y = 'Normalized collected charge mean',
-			error_y = 'Normalized collected charge std',
+			y = 'Normalized collected charge median',
+			error_y = 'Normalized collected charge MAD_std',
 			error_y_mode = 'band',
 			color = 'Pad',
 			markers = '.',
@@ -88,9 +116,9 @@ def script_core(measurement_name: str, window_size=125e-6, force=False):
 		)
 		for pad in results.index:
 			if pad == 'left':
-				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/2,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/4,'Distance (m)']
 			else:
-				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/2,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/4,'Distance (m)']
 			x = np.linspace(min(df), max(df), 99)
 			fig.add_trace(
 				go.Scatter(
@@ -104,13 +132,12 @@ def script_core(measurement_name: str, window_size=125e-6, force=False):
 		fig.write_html(str(Iñaqui.processed_data_dir_path/Path(f'fit.html')), include_plotlyjs = 'cdn')
 		
 		# Now center data in Distance (m) = 0 and find calibration factor ---
-		offset = data_df['Distance (m)'].iloc[0] - data_df['Distance - offset (m)'].iloc[0]
 		x_50_percent = {}
 		for pad in results.index:
 			if pad == 'left':
-				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/2,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/4,'Distance (m)']
 			else:
-				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/2,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/4,'Distance (m)']
 			x = np.linspace(min(df), max(df), 99)
 			y = fit_results[pad].eval(params=fit_results[pad].params, x = x)
 			inverted_erf = interpolate.interp1d(
@@ -118,17 +145,17 @@ def script_core(measurement_name: str, window_size=125e-6, force=False):
 				y = x,
 			)
 			x_50_percent[pad] = float(inverted_erf(.5))
-		multiply_distance_by_this_scale_factor_to_fix_calibration = 2*window_size/((x_50_percent['left']-x_50_percent['right'])**2)**.5
+		multiply_distance_by_this_scale_factor_to_fix_calibration = window_size/((x_50_percent['left']-x_50_percent['right'])**2)**.5
 		with open(Iñaqui.processed_data_dir_path/Path('scale_factor.txt'), 'w') as ofile:
 			print(f'multiply_distance_by_this_scale_factor_to_fix_calibration = {multiply_distance_by_this_scale_factor_to_fix_calibration}', file=ofile)
 		
-		for distance_col in {'Distance (m)','Distance - offset (m)'}:
+		for distance_col in {'Distance (m)'}:
 			data_df[f'{distance_col} calibrated'] = data_df[distance_col]*multiply_distance_by_this_scale_factor_to_fix_calibration
-		fig = utils.line(
-			data_frame = utils.mean_std(data_df, by=['n_position','Pad', 'Distance - offset (m) calibrated', 'Distance (m) calibrated']),
-			x = 'Distance - offset (m) calibrated',
-			y = 'Normalized collected charge mean',
-			error_y = 'Normalized collected charge std',
+		fig = line(
+			data_frame = utils.mean_std(data_df, by=['n_position','Pad', 'Distance (m) calibrated']),
+			x = 'Distance (m) calibrated',
+			y = 'Normalized collected charge median',
+			error_y = 'Normalized collected charge MAD_std',
 			error_y_mode = 'band',
 			color = 'Pad',
 			markers = '.',
@@ -136,13 +163,13 @@ def script_core(measurement_name: str, window_size=125e-6, force=False):
 		)
 		for pad in results.index:
 			if pad == 'left':
-				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/2,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']<data_df['Distance (m)'].mean()-window_size/4,'Distance (m)']
 			else:
-				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/2,'Distance (m)']
+				df = data_df.loc[data_df['Distance (m)']>data_df['Distance (m)'].mean()+window_size/4,'Distance (m)']
 			x = np.linspace(min(df), max(df), 99)
 			fig.add_trace(
 				go.Scatter(
-					x = (x-offset)*multiply_distance_by_this_scale_factor_to_fix_calibration,
+					x = x*multiply_distance_by_this_scale_factor_to_fix_calibration,
 					y = fit_results[pad].eval(params=fit_results[pad].params, x = x),
 					mode = 'lines',
 					name = f'Fit erf {pad} pad, σ<sub>laser</sub>={fit_results[pad].params["laser_sigma"].value*1e6*multiply_distance_by_this_scale_factor_to_fix_calibration:.1f} µm',
@@ -153,7 +180,6 @@ def script_core(measurement_name: str, window_size=125e-6, force=False):
 	
 if __name__ == '__main__':
 	import argparse
-	import measurements_table as mt
 	
 	parser = argparse.ArgumentParser(description='Fits an ERF function to the metal-silicon interfaces of a linear scan and uses this information to calculate a calibration factor based on the real distance.')
 	parser.add_argument(
@@ -165,4 +191,4 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory).parts[-1])
+	script_core(Path(args.directory), window_size=300e-6, force=True)
