@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas
 
 def read_measurement_list(directory: Path):
 	with open(directory/Path("beta_scan_sweeping_bias_voltage/README.txt"), 'r') as iFile:
@@ -15,8 +16,9 @@ def resample_measured_data(measured_data_df):
 
 def tag_left_right_pad(data_df):
 	"""Given a data_df with data from a single 1D scan of two pads of a 
-	device, this function adds a new column indicating if the pad is 
-	"left" or "right".
+	device, this function creates a new column indicating if the pad is 
+	"left" or "right" and returns such column as a data frame with the
+	same index as `data_df`.
 	"""
 	channels = set(data_df['n_channel'])
 	if len(channels) != 2:
@@ -33,12 +35,12 @@ def tag_left_right_pad(data_df):
 		pad_df.loc[data_df['n_channel']==n_channel, 'Pad'] = mapping[n_channel]
 	return pad_df
 
-def calculate_normalized_collected_charge(df, window_size=125e-6, laser_sigma=9e-6):
+def calculate_normalized_collected_charge(df, window_size, laser_sigma=9e-6):
 	"""df must be the dataframe from a single 1D scan. `window_size` and 
 	`laser_sigma` are used to know where we expect zero signal and where 
 	we expect full signal.
 	Return a single-column-dataframe containint the value of the 
-	normalized collected charge at each row.
+	normalized collected charge at each row with the same index as `df`.
 	"""
 	check_df_is_from_single_1D_scan(df)
 	normalized_charge_df = pandas.DataFrame(index=df.index)
