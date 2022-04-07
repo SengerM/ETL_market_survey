@@ -88,6 +88,9 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 		return
 	
 	with Iñaqui.verify_no_errors_context():
+		if not Iñaqui.job_successfully_completed_by_script('parse_waveforms_from_scan.py'):
+			raise RuntimeError(f'There is no successfull run of `parse_waveforms_from_scan.py` for measurement {Iñaqui.measurement_name}, cannot proceed.')
+		
 		measurement_handler.tag_left_and_right_pads()
 		
 		if 'Normalized collected charge' not in measurement_handler.measurement_data.columns:
@@ -198,4 +201,8 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory), window_size=300e-6, force=True)
+	script_core(
+		Path(args.directory), 
+		window_size = 300e-6, # From the microscope pictures.
+		force = True,
+	)
