@@ -2,6 +2,8 @@ from pathlib import Path
 import pandas
 from bureaucrat.Bureaucrat import Bureaucrat
 import utils
+from scipy.stats import median_abs_deviation
+import numpy as np
 
 MEASUREMENTS_DATA_PATH = Path('../../measurements_data')
 
@@ -121,6 +123,86 @@ class MeasurementHandler:
 				self.measurement_data['Pad'] = pads_df['Pad']
 		else:
 			raise TypeError(f"Don't know how to tag left and right pads for a measurement of type {repr(self.measurement_type)}.")
+	
+	@property
+	def bias_voltage_summary(self):
+		"""Returns information related to the bias voltage. Because we 
+		are dealing with several different types of measurements (IV curves,
+		beta scans, TCT scans, etc.) the returned object will vary. It may
+		return a string e.g. "no information", it may return the list of
+		bias voltages in the case of an IV curve, etc. You have to check
+		when you call this method what is it giving to you.
+		"""
+		if not hasattr(self, '_bias_voltage'):
+			if self.measurement_type == 'TCT 1D scan fixed voltage':
+				self._bias_voltage = {
+					'mean': self.measurement_data['Bias voltage (V)'].mean(),
+					'median': self.measurement_data['Bias voltage (V)'].median(),
+					'std': self.measurement_data['Bias voltage (V)'].std(),
+					'MAD_std': median_abs_deviation(self.measurement_data['Bias voltage (V)'], nan_policy='omit')*utils.k_MAD_TO_STD,
+				}
+			else:
+				raise NotImplementedError(f'Dont know how to summarize for measurement of type {repr(self.measurement_type)}.')
+		return self._bias_voltage
+	
+	@property
+	def inter_pixel_distance_summary(self):
+		"""Tries to return the inter pixel distance, in case it is possible.
+		If the handler is handling a measurement for which it has no
+		sense to speak of inter-pixel distance, a `NotImplementedError` is raised.
+		The returned object depends on the type of measurement (e.g. a
+		TCT scan at a fixed voltage or a collection of TCT scans at different
+		bias voltages).
+		"""
+		if not hasattr(self, '_inter_pixel_distance_summary'):
+			if self.measurement_type == 'TCT 1D scan fixed voltage':
+				try:
+					with open(MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('calculate_inter_pixel_distance_for_single_1D_scan/interpixel_distance.txt'),'r') as ifile:
+						for line in ifile:
+							if 'Inter-pixel distance (m) = ' in line:
+								inter_pixel_distance = float(line.split(' = ')[-1])
+					with open(MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('calculate_inter_pixel_distance_for_single_1D_scan/interpixel_distance_bootstrapped_values.txt'),'r') as ifile:
+						bootstrapped_replicas = []
+						for line in ifile:
+							bootstrapped_replicas.append(float(line))
+				except (FileNotFoundError, ValueError):
+					pass
+				_locals_now = locals()
+				if any([has_to_be not in _locals_now for has_to_be in {'inter_pixel_distance','bootstrapped_replicas'}]) or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('calculate_inter_pixel_distance_for_single_1D_scan/.script_successfully_applied')).is_file():
+					raise RuntimeError(f'No information (or no reliable information) about the inter-pixel distance could be found for measurement {self.measurement_name}.')
+				self._inter_pixel_distance_summary = {
+					'Inter-pixel distance (m) value on data': inter_pixel_distance,
+					'Inter-pixel distance (m) mean': np.mean(bootstrapped_replicas),
+					'Inter-pixel distance (m) median': np.median(bootstrapped_replicas),
+					'Inter-pixel distance (m) std': np.std(bootstrapped_replicas),
+					'Inter-pixel distance (m) MAD_std': median_abs_deviation(bootstrapped_replicas)*utils.k_MAD_TO_STD,
+				}
+			else:
+				raise NotImplementedError(f'Dont know how to summarize for measurement of type {repr(self.measurement_type)}.')
+		return self._inter_pixel_distance_summary
+	
+	@property
+	def distance_calibration_factor(self):
+		"""Returns the distance calibration factor produced by the "fit
+		ERF" script if it makes sense for this type of measurement and
+		if it was calculated beforehand. Otherwise, rises error.
+		"""
+		if not hasattr(self, '_distance_calibration_factor'):
+			if self.measurement_type == 'TCT 1D scan fixed voltage':
+				try:
+					with open(MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/scale_factor.txt'),'r') as ifile:
+						for line in ifile:
+							if 'multiply_distance_by_this_scale_factor_to_fix_calibration = ' in line:
+								distance_calibration_factor = float(line.split(' = ')[-1])
+				except (FileNotFoundError, ValueError):
+					pass
+				_locals_now = locals()
+				if 'distance_calibration_factor' not in _locals_now or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file():
+					raise RuntimeError(f'No information (or no reliable information) about the distance calibration factor could be found for measurement {self.measurement_name}.')
+				self._distance_calibration_factor = distance_calibration_factor
+			else:
+				raise NotImplementedError(f'Dont know how to get a distance calibration factor for measurement of type {repr(self.measurement_type)}.')	
+		return self._distance_calibration_factor
 	
 if __name__ == '__main__':
 	MEASUREMENTS = {
