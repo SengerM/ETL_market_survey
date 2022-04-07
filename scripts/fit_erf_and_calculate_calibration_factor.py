@@ -11,6 +11,11 @@ from scipy import interpolate
 import measurements
 from grafica.plotly_utils.utils import line
 
+LABELS_FOR_PLOTS = {
+	'Normalized collected charge mean': 'Normalized collected charge',
+	'Normalized collected charge median': 'Normalized collected charge',
+}
+
 def metal_silicon_transition_model_function_left_pad(x, y_scale, laser_sigma, x_offset, y_offset):
 	return y_scale*special.erf((x-x_offset)/laser_sigma*2**.5) + y_offset
 
@@ -112,7 +117,8 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 			error_y_mode = 'band',
 			color = 'Pad',
 			markers = '.',
-			title = f'Laser profile check<br><sup>Measurement: {Iñaqui.measurement_name}</sup>',
+			title = f'ERF fit to silicon-metal interfaces<br><sup>Measurement: {Iñaqui.measurement_name}</sup>',
+			labels = LABELS_FOR_PLOTS,
 		)
 		for pad in results.index:
 			if pad == 'left':
@@ -129,7 +135,7 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 					line = dict(color='black', dash='dash'),
 				)
 			)
-		fig.write_html(str(Iñaqui.processed_data_dir_path/Path(f'fit.html')), include_plotlyjs = 'cdn')
+		fig.write_html(str(Iñaqui.processed_data_dir_path/Path(f'erf_fit.html')), include_plotlyjs = 'cdn')
 		
 		# Now center data in Distance (m) = 0 and find calibration factor ---
 		x_50_percent = {}
@@ -159,7 +165,8 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 			error_y_mode = 'band',
 			color = 'Pad',
 			markers = '.',
-			title = f'Laser profile check after calibration applied<br><sup>Measurement: {Iñaqui.measurement_name}</sup>',
+			title = f'Scan after applying the calibration factor (x←{multiply_distance_by_this_scale_factor_to_fix_calibration:.2e}×x)<br><sup>Measurement: {Iñaqui.measurement_name}</sup>',
+			labels = LABELS_FOR_PLOTS,
 		)
 		for pad in results.index:
 			if pad == 'left':
@@ -172,12 +179,12 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 					x = x*multiply_distance_by_this_scale_factor_to_fix_calibration,
 					y = fit_results[pad].eval(params=fit_results[pad].params, x = x),
 					mode = 'lines',
-					name = f'Fit erf {pad} pad, σ<sub>laser</sub>={fit_results[pad].params["laser_sigma"].value*1e6*multiply_distance_by_this_scale_factor_to_fix_calibration:.1f} µm',
+					name = f'Fit erf {pad} pad',
 					line = dict(color='black', dash='dash'),
 				)
 			)
 		fig.write_html(str(Iñaqui.processed_data_dir_path/Path(f'after_calibration.html')), include_plotlyjs = 'cdn')
-	
+
 if __name__ == '__main__':
 	import argparse
 	
