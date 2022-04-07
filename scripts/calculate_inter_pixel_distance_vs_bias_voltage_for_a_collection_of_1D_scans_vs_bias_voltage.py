@@ -149,6 +149,23 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 				include_plotlyjs = 'cdn',
 			)
 		
+		fig = line(
+			title = f'Distance scale calibration factor<br><sup>Measurement: {Adérito.measurement_name}</sup>',
+			data_frame = data_df,
+			x = 'Bias voltage (V) median',
+			y = f'Distance scale factor',
+			markers = True,
+			labels = {
+				'Inter-pixel distance (m)': 'Inter-pixel distance (m) without calibration',
+				'Inter-pixel distance (m) calibrated': 'Inter-pixel distance (m)',
+				'Bias voltage (V) median': 'Bias voltage (V)',
+			},
+		)
+		fig.write_html(
+			str(Adérito.processed_data_dir_path/Path(f'distance calibration factor.html')),
+			include_plotlyjs = 'cdn',
+		)
+		
 		DIRECTORY_FOR_SCAN_PLOTS = Adérito.processed_data_dir_path/Path('scans vs voltage plots')
 		DIRECTORY_FOR_SCAN_PLOTS.mkdir(exist_ok=True)
 		scans_1D = utils.mean_std(scans_1D, by=['measurement_name','n_position','Pad','n_pulse'])
