@@ -63,7 +63,25 @@ def read_and_preprocess_measurement_TCT_1DScan_fixed_voltage(measurement_name: s
 	"""
 	data_df = pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('parse_waveforms_from_scan')/Path('data.fd'))
 	return data_df
-		
+
+def read_and_preprocess_IV_curve_done_at_the_beta_setup(measurement_name: str):
+	"""Reads the data from an IV curve made in the beta setup. This will
+	fail for the probe station.
+	"""
+	return pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('iv_curve')/Path('measured_data.fd'))
+
+def read_and_preprocess_IV_curve_done_at_the_TCT_setup(measurement_name: str):
+	"""Reads the data from an IV curve made in the TCT setup. This will
+	fail for the probe station.
+	"""
+	df = pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('IV_curve')/Path('measured_data.fd'))
+	for col in {'Bias current (A)','Bias voltage (V)'}:
+		df[col] = df[col].abs()
+	return df
+
+def read_and_preprocess_IV_done_at_the_probe_station(measurement_name: str):
+	return pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('convert_probe_station_measurement_to_our_format')/Path('measured_data.fd'))
+
 class MeasurementHandler:
 	"""A class specialized in handling the measurements of the ETL
 	Market Survey.
@@ -108,6 +126,13 @@ class MeasurementHandler:
 		if not hasattr(self, '_measurement_data_df'):
 			if self.measurement_type == 'TCT 1D scan fixed voltage':
 				self._measurement_data_df = read_and_preprocess_measurement_TCT_1DScan_fixed_voltage(self.measurement_name)
+			elif self.measurement_type == 'IV curve':
+				try:
+					self._measurement_data_df = read_and_preprocess_IV_curve_done_at_the_beta_setup(self.measurement_name)
+				except FileNotFoundError:
+					self._measurement_data_df = read_and_preprocess_IV_curve_done_at_the_TCT_setup(self.measurement_name)
+			elif self.measurement_type == 'IV curve probe station':
+				self._measurement_data_df = read_and_preprocess_IV_done_at_the_probe_station(self.measurement_name)
 			else:
 				raise NotImplementedError(f"Don't know how to read a measurement of type {repr(self.measurement_type)}.")
 		return self._measurement_data_df
@@ -208,6 +233,21 @@ class MeasurementHandler:
 			else:
 				raise NotImplementedError(f'Dont know how to get a distance calibration factor for measurement of type {repr(self.measurement_type)}.')	
 		return self._distance_calibration
+	
+	@property
+	def measured_devices(self) -> list:
+		"""If possible, returns a list with the names of the devices that
+		were measured. Otherwise raises `RuntimeError`.
+		"""
+		if not hasattr(self, '_measured_devices'):
+			measured_devices = []
+			for s in self.measurement_name.split('_'):
+				if s[:2] == 'MS':
+					measured_devices.append(s)
+			if len(measured_devices) == 0:
+				raise RuntimeError(f'Cannot find the measured devices for meausrement {self.measurement_name}.')
+			self._measured_devices = measured_devices
+		return self._measured_devices
 	
 if __name__ == '__main__':
 	MEASUREMENTS = {
