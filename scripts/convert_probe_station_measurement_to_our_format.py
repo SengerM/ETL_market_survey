@@ -135,4 +135,12 @@ if __name__ == '__main__':
 	)
 	
 	args = parser.parse_args()
-	script_core(Path(args.directory))
+	path = Path(args.directory)
+	if 'Run' in path.parts[-1]:
+		script_core(path)
+	else:
+		for p in sorted(path.iterdir()):
+			try:
+				script_core(p)
+			except Exception as e:
+				print(f'Cannot process {p}, reason {e}.')
