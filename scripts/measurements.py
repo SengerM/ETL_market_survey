@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas
 
 MEASUREMENTS_DATA_PATH = Path('../../measurements_data')
 
@@ -46,6 +47,35 @@ def measurement_type(measurement_name: str) -> str:
 		measurement_type = 'TCT 1D scan sweeping bias voltage'
 	return measurement_type
 
+def read_and_preprocess_measurement(measurement_name: str):
+	"""Reads the "main data" from a measurement and does some pre-processing
+	so it is easier and more standard in the top level scripts to handle
+	it.
+	
+	Returns
+	-------
+	data_df: pandas.DataFrame
+		Data frame with the data.
+	"""
+	def read_and_preprocess_measurement_TCT_1DScan_fixed_voltage(measurement_name: str):
+		"""Reads the "main data" from a TCT measurement and does some pre-processing
+		so it is easier and more standard in the top level scripts to handle
+		it.
+		
+		Returns
+		-------
+		data_df: pandas.DataFrame
+			Data frame with the data.
+		"""
+		data_df = pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('parse_waveforms_from_scan')/Path('data.fd'))
+		return data_df
+		
+	this_measurement_type = measurement_type(measurement_name)
+	if this_measurement_type == 'TCT 1D scan fixed voltage':
+		return read_and_preprocess_measurement_TCT_1DScan_fixed_voltage(measurement_name)
+	else:
+		raise NotImplementedError(f"Don't know how to read a measurement of type {repr(this_measurement_type)}.")
+
 if __name__ == '__main__':
 	MEASUREMENTS = {
 		'20220404021350_MS07_1DScan_228V',
@@ -56,4 +86,8 @@ if __name__ == '__main__':
 		'20220317155531_BetaScan_SpeedyGonzalez12_at_98V',
 	}
 	for m in MEASUREMENTS:
-		print(f'{m} | {measurement_type(m)}')
+		print(m)
+		try:
+			print(read_and_preprocess_measurement(m))
+		except:
+			pass
