@@ -2,7 +2,7 @@ import pandas
 import utils
 from scipy import special
 from lmfit import Model
-from bureaucrat.Bureaucrat import Bureaucrat
+from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
@@ -22,10 +22,25 @@ def metal_silicon_transition_model_function_left_pad(x, y_scale, laser_sigma, x_
 def metal_silicon_transition_model_function_right_pad(x, y_scale, laser_sigma, x_offset, y_offset):
 	return metal_silicon_transition_model_function_left_pad(-x, y_scale, laser_sigma, -x_offset, y_offset)
 
-def fit_erf(df, windows_size):
+def fit_erf(df, windows_size: float):
 	"""Given a df with data from a single 1D scan, this function fits an
 	erf (convolution of Gaussian and step) to each metal-silicon interface. 
 	Returns the fit result object by lmfit, one for each pad (left and right).
+	
+	Parameters
+	----------
+	df: pandas.DataFrame
+		Data frame containing the data from a 1D scan with 2 pixels.
+	windows_size: float
+		Size of the window that covers the two pixels. I.e. it is the
+		distance from the metal→silicon interface in the left pixel to
+		the silicon→metal interface in the right pixel.
+	
+	Returns
+	-------
+	fit_results: dict
+		A dictionary of the form `{'left': lmfit.ModelResult, 'right': lmfit.ModelResult}`
+		with the results of fitting the model to each pixel.s
 	"""
 	
 	df = df.loc[df['n_pulse']==1] # Use only pulse 1 for this.
