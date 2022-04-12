@@ -20,15 +20,15 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 	with Vitorino.verify_no_errors_context():
 		collected_charge_data = []
 		for measurement_name in read_measurement_list(Vitorino.measurement_base_path):
-			plot_collected_charge(
-				Vitorino.measurement_base_path.parent/Path(measurement_name),
-				force = False,
-				n_bootstrap = 33,
-			)
 			try:
+				plot_collected_charge(
+					Vitorino.measurement_base_path.parent/Path(measurement_name),
+					force = False,
+					n_bootstrap = 33,
+				)
 				df = pandas.read_csv(Vitorino.measurement_base_path.parent/Path(measurement_name)/Path('plot_collected_charge/results.csv'))
-			except FileNotFoundError:
-				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}')
+			except FileNotFoundError as e:
+				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}, reason: {e}')
 				continue
 			collected_charge_data.append(
 				{
@@ -53,6 +53,9 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			error_y = 'Collected charge (V s) x_mpv std',
 			hover_data = sorted(df),
 			markers = 'circle',
+			labels = {
+				'Collected charge (V s) x_mpv value_on_data': 'Collected charge (V s)',
+			}
 		)
 		fig.write_html(
 			str(Vitorino.processed_data_dir_path/Path('collected charge vs bias voltage.html')),
