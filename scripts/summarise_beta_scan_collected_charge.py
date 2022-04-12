@@ -7,7 +7,7 @@ from scipy.stats import median_abs_deviation
 from utils import read_measurement_list, get_voltage_from_measurement
 from plot_collected_charge import script_core as plot_collected_charge
 
-def script_core(directory: Path, dut_name: str, force: bool=False):
+def script_core(directory: Path, force: bool=False):
 	Vitorino = Bureaucrat(
 		directory,
 		new_measurement = False,
@@ -30,18 +30,20 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			except FileNotFoundError as e:
 				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}, reason: {e}')
 				continue
-			collected_charge_data.append(
-				{
-					'Collected charge (V s) x_mpv value_on_data': float(df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to data"')['Value']),
-					'Collected charge (V s) x_mpv mean': df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].mean(),
-					'Collected charge (V s) x_mpv std': df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].std(),
-					'Collected charge (V s) x_mpv median': df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].median(),
-					'Collected charge (V s) x_mpv MAD_std': median_abs_deviation(df.query(f'`Device name`=="{dut_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value']),
-					'Measurement name': measurement_name,
-					'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
-					'Fluence (neq/cm^2)/1e14': 0,
-				}
-			)
+			for device_name in set(df['Device name']):
+				collected_charge_data.append(
+					{
+						'Collected charge (V s) x_mpv value_on_data': float(df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to data"')['Value']),
+						'Collected charge (V s) x_mpv mean': df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].mean(),
+						'Collected charge (V s) x_mpv std': df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].std(),
+						'Collected charge (V s) x_mpv median': df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].median(),
+						'Collected charge (V s) x_mpv MAD_std': median_abs_deviation(df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value']),
+						'Measurement name': measurement_name,
+						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
+						'Fluence (neq/cm^2)/1e14': 0,
+						'Device name': device_name,
+					}
+				)
 		collected_charge_df = pandas.DataFrame.from_records(collected_charge_data)
 
 		df = collected_charge_df.sort_values(by='Bias voltage (V)')
@@ -55,7 +57,8 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			markers = 'circle',
 			labels = {
 				'Collected charge (V s) x_mpv value_on_data': 'Collected charge (V s)',
-			}
+			},
+			color = 'Device name',
 		)
 		fig.write_html(
 			str(Vitorino.processed_data_dir_path/Path('collected charge vs bias voltage.html')),
@@ -76,5 +79,4 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	dut_name = str(input('Name of DUT? '))
-	script_core(Path(args.directory), dut_name=dut_name, force=True)
+	script_core(Path(args.directory), force=True)
