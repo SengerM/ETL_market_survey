@@ -41,7 +41,7 @@ def measurement_type(measurement_name: str) -> str:
 			measurement_type += ' fixed voltage'
 		elif 'sweeping_bias_voltage' in measurement_name.lower():
 			measurement_type += ' voltage scan'
-	elif 'iv' in measurement_name.lower() and 'curve' in measurement_name.lower():
+	elif ('iv' in measurement_name.lower() and 'curve' in measurement_name.lower()) or 'IV' in measurement_name or (MEASUREMENTS_DATA_PATH/Path('iv_curve')).is_dir():
 		measurement_type = 'IV curve'
 	if all([s in measurement_name.lower() for s in {'probe','station'}]):
 		measurement_type = 'IV curve probe station'
