@@ -57,4 +57,6 @@ fig = line(
 	log_y = True,
 	grouped_legend = True,
 )
-fig.show()
+PLOT_PATH = Path.home()/Path('iv_curves_all_together.html')
+fig.write_html(str(PLOT_PATH), include_plotlyjs='cdn')
+print(f'Plot was saved in {PLOT_PATH}')
