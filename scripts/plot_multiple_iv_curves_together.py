@@ -58,3 +58,7 @@ fig = line(
 	grouped_legend = True,
 )
 fig.show()
+fig.write_html(
+	"LGAD_IVCurve.html",
+	include_plotlyjs = 'cdn',
+)
