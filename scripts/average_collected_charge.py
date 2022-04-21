@@ -7,7 +7,7 @@ import math
 import csv
 import plotly.express as px
 
-def script_core(measurements=None, devices=[], plot=False):
+def script_core(measurements=None, apply_devices=[], plot=False):
 	if measurements is None:
 		print("You must specify a dictionary of measurements with labels")
 		return
@@ -39,7 +39,7 @@ def script_core(measurements=None, devices=[], plot=False):
 				devices, means, stddevs = pickle.load(pcklfile)
 				if measurements[key][1] not in devices:
 					continue
-				index = devices.index(measurements[key][0])
+				index = devices.index(measurements[key][1])
 				count += 1
 				all_mean += means[index]
 				all_stddev += stddevs[index]**2
@@ -59,7 +59,7 @@ def script_core(measurements=None, devices=[], plot=False):
 				writer.writerow(["stddev", all_stddev])
 
 			with open(KalEl.processed_data_dir_path/Path('average_collected_charge.pckl'), 'wb') as pcklfile:
-				pickle.dump([devices, [all_mean]*len(devices), [all_stddev]*len(devices)], pcklfile, protocol=-1)
+				pickle.dump([apply_devices, [all_mean]*len(apply_devices), [all_stddev]*len(apply_devices)], pcklfile, protocol=-1)
 
 
 			all_data.append({
@@ -122,4 +122,4 @@ if __name__ == '__main__':
 		"MS18",
 	]
 
-	script_core(measurements, plot = args.plot)
+	script_core(measurements, apply_devices = devices, plot = args.plot)

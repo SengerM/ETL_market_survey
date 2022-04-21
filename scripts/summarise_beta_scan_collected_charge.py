@@ -67,6 +67,8 @@ def script_core(directory: Path, force: bool=False, average_voltage: int=None, c
 				)
 				if average_voltage is not None:
 					if int(get_voltage_from_measurement(measurement_name)[:-1]) >= average_voltage:
+						if device_name not in charge_data:
+							charge_data[device_name] = []
 						charge_data[device_name] += [float(df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to data"')['Value'])]
 		collected_charge_df = pandas.DataFrame.from_records(collected_charge_data)
 
@@ -79,11 +81,11 @@ def script_core(directory: Path, force: bool=False, average_voltage: int=None, c
 			for device in device_names:
 				conditions += [collected_charge_df['Device name'] == device]
 				if device in conversion_factor:
-					values_conversion += [conversion_factor[device]][0]
-					values_stddev += [conversion_factor[device]][1]
+					values_conversion += [conversion_factor[device][0]]
+					values_stddev += [conversion_factor[device][1]]
 				else:
-					values_conversion += 0
-					values_stddev += 0
+					values_conversion += [0]
+					values_stddev += [0]
 			conversion = numpy.select(conditions, values_conversion)
 			stddev     = numpy.select(conditions, values_stddev)
 
