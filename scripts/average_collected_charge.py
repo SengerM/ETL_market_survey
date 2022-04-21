@@ -7,7 +7,7 @@ import math
 import csv
 import plotly.express as px
 
-def script_core(measurements=None, plot=False):
+def script_core(measurements=None, devices=[], plot=False):
 	if measurements is None:
 		print("You must specify a dictionary of measurements with labels")
 		return
@@ -28,22 +28,25 @@ def script_core(measurements=None, plot=False):
 		all_mean = 0
 		all_stddev = 0
 		for key in measurements:
-			if measurements[key] is None or not (MEASUREMENTS_DATA_PATH/Path(measurements[key]+"/summarise_beta_scan_collected_charge/.script_successfully_applied")).is_file():
+			if measurements[key][0] is None or not (MEASUREMENTS_DATA_PATH/Path(measurements[key][0]+"/summarise_beta_scan_collected_charge/.script_successfully_applied")).is_file():
 				print("You must specify a valid measurement for {}".format(key))
 				continue
-			pcklpath = MEASUREMENTS_DATA_PATH/Path(measurements[key]+"/summarise_beta_scan_collected_charge/average_collected_charge.pckl")
+			pcklpath = MEASUREMENTS_DATA_PATH/Path(measurements[key][0]+"/summarise_beta_scan_collected_charge/average_collected_charge.pckl")
 			if not pcklpath.is_file():
-				print("You must pass the option to calculate the average charge to the summarise_beta_scan_collected_charge.py script for \"{}\" in order to have a valid measurement".format(measurements[key]))
+				print("You must pass the option to calculate the average charge to the summarise_beta_scan_collected_charge.py script for \"{}\" in order to have a valid measurement".format(measurements[key][0]))
 				continue
 			with open(str(pcklpath), 'rb') as pcklfile:
-				mean, stddev = pickle.load(pcklfile)
+				devices, means, stddevs = pickle.load(pcklfile)
+				if measurements[key][1] not in devices:
+					continue
+				index = devices.index(measurements[key][0])
 				count += 1
-				all_mean += mean
-				all_stddev += stddev**2
+				all_mean += means[index]
+				all_stddev += stddevs[index]**2
 				all_data.append({
 					'Measurement': key,
-					'Mean charge (C)': mean,
-					'Stddev charge (C)': stddev,
+					'Mean charge (C)': means[index],
+					'Stddev charge (C)': stddevs[index],
 					'Label': "measurement",
 				})
 		if count != 0:
@@ -56,7 +59,7 @@ def script_core(measurements=None, plot=False):
 				writer.writerow(["stddev", all_stddev])
 
 			with open(KalEl.processed_data_dir_path/Path('average_collected_charge.pckl'), 'wb') as pcklfile:
-				pickle.dump([all_mean, all_stddev], pcklfile, protocol=-1)
+				pickle.dump([devices, [all_mean]*len(devices), [all_stddev]*len(devices)], pcklfile, protocol=-1)
 
 
 			all_data.append({
@@ -93,8 +96,30 @@ if __name__ == '__main__':
 
 	# List the measurements to be averaged as pairs of LABEL: MEASUREMENT_DIRECTORY
 	measurements = {
-		"MS11PIN": "20220407154640_BetaScan_MS11_PIN_sweeping_bias_voltage",
-		"MS12PIN": "20220412121103_BetaScan_MS12_PIN_sweeping_bias_voltage",
+		"MS11PIN": ("20220407154640_BetaScan_MS11_PIN_sweeping_bias_voltage", "MS11_PIN"),
+		"MS12PIN": ("20220412121103_BetaScan_MS12_PIN_sweeping_bias_voltage", "MS12_PIN"),
 	}
+	devices = [
+		"MS01",
+		"MS02",
+		"MS03",
+		"MS04",
+		"MS05",
+		"MS06",
+		"MS07",
+		"MS08",
+		"MS09",
+		"MS10",
+		"MS11_PIN",
+		"MS11_LGAD",
+		"MS12_PIN",
+		"MS12_LGAD",
+		"MS13",
+		"MS14",
+		"MS15",
+		"MS16",
+		"MS17",
+		"MS18",
+	]
 
 	script_core(measurements, plot = args.plot)
