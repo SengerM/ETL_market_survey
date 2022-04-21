@@ -46,12 +46,19 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		colors = iter(px.colors.qualitative.Plotly)
 		results_data = []
 		for n_bootstrap_iter in range(n_bootstrap+1):
-			if n_bootstrap_iter > 0:
-				raise NotImplementedError(f'Cannot perform bootstrap at the moment, there is a strange error in Pandas and I dont have time to fix now.')
-			this_iteration_data_df = measured_data_df if n_bootstrap_iter == 0 else resample_measured_data(measured_data_df)
+			# ~ if n_bootstrap_iter > 0:
+				# ~ raise NotImplementedError(f'Cannot perform bootstrap at the moment, there is a strange error in Pandas and I dont have time to fix now.')
+			if n_bootstrap_iter == 0:
+				this_iteration_data_df = measured_data_df
+			else:
+				this_iteration_data_df = measured_data_df.groupby(by=['n_trigger']).sample(frac=1, replace=True)
 			for device_name in sorted(set(measured_data_df['device_name'])):
 				samples_to_fit = this_iteration_data_df.query('accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
-				popt, _, hist, bin_centers = binned_fit_langauss(samples_to_fit)
+				try:
+					popt, _, hist, bin_centers = binned_fit_langauss(samples_to_fit)
+				except RuntimeError as e:
+					warnings.warn(f'Cannot fit data for n_bootstrap={n_bootstrap}, reason: {e}. I will just skip it...')
+					continue
 				results_data.append(
 					{
 						'Variable': 'Collected charge (V s) x_mpv',
@@ -112,5 +119,5 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	N_BOOTSTRAP = 0
+	N_BOOTSTRAP = 33
 	script_core(Path(args.directory), force=True, n_bootstrap=N_BOOTSTRAP)
