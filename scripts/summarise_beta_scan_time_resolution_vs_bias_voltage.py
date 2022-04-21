@@ -46,7 +46,7 @@ def script_core(directory: Path, force: bool=False):
 
 		time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
 
-		REFERENCE_TIME_RESOLUTION = 35.8e-12 # Speedy Gonzalez 12 Time Resolution
+		REFERENCE_TIME_RESOLUTION = 36.9e-12 # Speedy Gonzalez 12 Time Resolution
 		time_resolution_df['Time resolution (s)'] = (time_resolution_df['sigma from Gaussian fit (s)']**2 - REFERENCE_TIME_RESOLUTION**2)**.5
 
 		df = time_resolution_df.sort_values(by='Bias voltage (V)')
