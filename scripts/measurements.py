@@ -9,7 +9,7 @@ MEASUREMENTS_DATA_PATH = Path('../../measurements_data')
 
 def measurement_type(measurement_name: str) -> str:
 	"""Returns the type of measurement (beta scan, TCT scan, IV, etc.).
-	
+
 	Example
 	-------
 	```
@@ -55,7 +55,7 @@ def read_and_preprocess_measurement_TCT_1DScan_fixed_voltage(measurement_name: s
 	"""Reads the "main data" from a TCT measurement and does some pre-processing
 	so it is easier and more standard in the top level scripts to handle
 	it.
-	
+
 	Returns
 	-------
 	data_df: pandas.DataFrame
@@ -88,7 +88,7 @@ class MeasurementHandler:
 	"""
 	def __init__(self, measurement_name: str):
 		"""Creates a `MeasurementHantler`.
-		
+
 		Parameters
 		----------
 		measurement_name: str
@@ -97,11 +97,11 @@ class MeasurementHandler:
 		if not isinstance(measurement_name, str):
 			raise TypeError(f'`measurement_name` must be an instance of {type("hola")}, received object of type {type(measurement_name)}.')
 		self._measurement_name = measurement_name
-	
+
 	@property
 	def measurement_name(self) -> str:
 		return self._measurement_name
-	
+
 	@property
 	def measurement_type(self) -> str:
 		"""Returns the measurement type, e.g. "TCT 1D scan sweeping bias voltage"
@@ -111,13 +111,13 @@ class MeasurementHandler:
 		if not hasattr(self, '_measurement_type'):
 			self._measurement_type = measurement_type(self.measurement_name)
 		return self._measurement_type
-	
+
 	@property
 	def measurement_data(self) -> pandas.DataFrame:
 		"""Reads the "main data" from this measurement and does some pre-processing
 		so it is easier and more standard in the top level scripts to handle
 		it.
-		
+
 		Returns
 		-------
 		data_df: pandas.DataFrame
@@ -136,7 +136,7 @@ class MeasurementHandler:
 			else:
 				raise NotImplementedError(f"Don't know how to read a measurement of type {repr(self.measurement_type)}.")
 		return self._measurement_data_df
-	
+
 	def tag_left_and_right_pads(self) -> None:
 		"""If the measurement is one in which we can define which is the
 		left and right pads (e.g. a TCT 1D scan), it adds a column to the
@@ -148,10 +148,10 @@ class MeasurementHandler:
 				self.measurement_data['Pad'] = pads_df['Pad']
 		else:
 			raise TypeError(f"Don't know how to tag left and right pads for a measurement of type {repr(self.measurement_type)}.")
-	
+
 	@property
 	def bias_voltage_summary(self):
-		"""Returns information related to the bias voltage. Because we 
+		"""Returns information related to the bias voltage. Because we
 		are dealing with several different types of measurements (IV curves,
 		beta scans, TCT scans, etc.) the returned object will vary. It may
 		return a string e.g. "no information", it may return the list of
@@ -169,7 +169,7 @@ class MeasurementHandler:
 			else:
 				raise NotImplementedError(f'Dont know how to summarize for measurement of type {repr(self.measurement_type)}.')
 		return self._bias_voltage
-	
+
 	@property
 	def inter_pixel_distance_summary(self):
 		"""Tries to return the inter pixel distance, in case it is possible.
@@ -205,7 +205,7 @@ class MeasurementHandler:
 			else:
 				raise NotImplementedError(f'Dont know how to summarize for measurement of type {repr(self.measurement_type)}.')
 		return self._inter_pixel_distance_summary
-	
+
 	@property
 	def distance_calibration(self):
 		"""Returns the distance calibration factor produced by the "fit
@@ -227,13 +227,13 @@ class MeasurementHandler:
 				if any([must_be_in_locals not in _locals_now for must_be_in_locals in {'distance_calibration_factor','offset_factor'}]) or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file():
 					raise RuntimeError(f'No information (or no reliable information) about the distance calibration factor could be found for measurement {self.measurement_name}.')
 				self._distance_calibration = {
-					'scale factor': distance_calibration_factor, 
+					'scale factor': distance_calibration_factor,
 					'offset before scale': offset_factor
 				}
 			else:
-				raise NotImplementedError(f'Dont know how to get a distance calibration factor for measurement of type {repr(self.measurement_type)}.')	
+				raise NotImplementedError(f'Dont know how to get a distance calibration factor for measurement of type {repr(self.measurement_type)}.')
 		return self._distance_calibration
-	
+
 	@property
 	def measured_devices(self) -> list:
 		"""If possible, returns a list with the names of the devices that
@@ -248,7 +248,7 @@ class MeasurementHandler:
 				raise RuntimeError(f'Cannot find the measured devices for meausrement {self.measurement_name}.')
 			self._measured_devices = measured_devices
 		return self._measured_devices
-	
+
 if __name__ == '__main__':
 	MEASUREMENTS = {
 		'20220404021350_MS07_1DScan_228V',
