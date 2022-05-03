@@ -4,6 +4,7 @@ from bureaucrat.Bureaucrat import Bureaucrat
 import utils
 from scipy.stats import median_abs_deviation
 import numpy as np
+from datetime import datetime
 
 MEASUREMENTS_DATA_PATH = Path('../../measurements_data')
 
@@ -101,6 +102,15 @@ class MeasurementHandler:
 	@property
 	def measurement_name(self) -> str:
 		return self._measurement_name
+	
+	@property
+	def measurement_when(self) -> datetime:
+		if not hasattr(self, '_measurement_when'):
+			try:
+				self._measurement_when = datetime.strptime(self.measurement_name[:14], '%Y%m%d%H%M%S')
+			except Exception as e:
+				raise RuntimeError(f'Cannot get `measurement_when` for measurement {repr(self.measurement_name)}, reason: {repr(e)}.')
+		return self._measurement_when
 
 	@property
 	def measurement_type(self) -> str:
@@ -259,7 +269,7 @@ def create_table_of_measurements():
 	measurements_df: pandas.DataFrame
 		The table...
 	"""
-	measurements_df = pandas.DataFrame(columns=['Measurement name','Measurement type','Measured device(s)'])
+	measurements_df = pandas.DataFrame(columns=['Measurement name','Measurement when','Measurement type','Measured device(s)'])
 	for measurement_dir_path in sorted(MEASUREMENTS_DATA_PATH.iterdir()):
 		handler = MeasurementHandler(measurement_dir_path.parts[-1])
 		try:
@@ -272,6 +282,7 @@ def create_table_of_measurements():
 				pandas.DataFrame(
 					{
 						'Measurement name': handler.measurement_name,
+						'Measurement when': handler.measurement_when,
 						'Measurement type': handler.measurement_type,
 						'Measured device(s)': measured_devices,
 					},
