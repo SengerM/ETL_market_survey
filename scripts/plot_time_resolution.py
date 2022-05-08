@@ -357,7 +357,7 @@ if __name__ == '__main__':
 	parser.add_argument(
 		'--dir',
 		metavar = 'path',
-		help = 'Path to the base directory of a measurement. If "all", the script is applied to all linear scans.',
+		help = 'Path to the base directory of a measurement.',
 		required = True,
 		dest = 'directory',
 		type = str,
