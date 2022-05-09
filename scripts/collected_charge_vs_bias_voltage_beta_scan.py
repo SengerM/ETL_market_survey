@@ -6,55 +6,59 @@ import grafica.plotly_utils.utils as plotly_utils
 import numpy
 from scipy.stats import median_abs_deviation
 from utils import read_measurement_list, get_voltage_from_measurement
-from plot_collected_charge import script_core as plot_collected_charge
+from collected_charge_beta_scan_single_voltage import script_core as collected_charge_beta_scan_single_voltage
+import measurements
 
-def script_core(directory: Path, force: bool=False, average_voltage: int=None, charge_measurement: Path=None, active_thickness: int=50):
+def script_core(directory:Path, force:bool=False, charge_calibration_measurement:Path=None, active_thickness:float=None, average_voltage=None):
 	Vitorino = Bureaucrat(
 		directory,
 		new_measurement = False,
 		variables = locals(),
 	)
+	
+	if measurements.measurement_type(Vitorino.measurement_name) != 'beta voltage scan':
+		raise NotImplementedError(f'Dont know how to process a measurement of type {repr(measurements.measurement_type(Vitorino.measurement_name))}.')
 
 	if force == False and Vitorino.job_successfully_completed_by_script('this script'):
 		return
-
+	
 	conversion_factor = None
-	if charge_measurement is not None:
-		pcklpath = None
-		if (charge_measurement/Path("average_collected_charge/.script_successfully_applied")).is_file():
-			pcklpath = charge_measurement/Path("average_collected_charge/average_collected_charge.pckl")
-		elif (charge_measurement/Path("summarise_beta_scan_collected_charge/.script_successfully_applied")).is_file():
-			pcklpath = charge_measurement/Path("summarise_beta_scan_collected_charge/average_collected_charge.pckl")
-		if pcklpath is not None:
-			with open(pcklpath, 'rb') as pcklfile:
-				import math
-				import pickle
-				from scipy.constants import elementary_charge
-				devices, means, stddevs = pickle.load(pcklfile)
-				PIN_charge = elementary_charge * ((31*math.log(active_thickness) + 128) * active_thickness)/3.65
-				conversion_factor = {}
-				for i in range(len(devices)):
-					conversion_factor[devices[i]] = (PIN_charge/means[i], stddevs[i] * PIN_charge/(means[i]**2))
-
-
+	if charge_calibration_measurement is not None:
+		if (charge_calibration_measurement/Path("average_collected_charge/.script_successfully_applied")).is_file():
+			pcklpath = charge_calibration_measurement/Path("average_collected_charge/average_collected_charge.pckl")
+		elif (charge_calibration_measurement/Path("summarise_beta_scan_collected_charge/.script_successfully_applied")).is_file():
+			pcklpath = charge_calibration_measurement/Path("summarise_beta_scan_collected_charge/average_collected_charge.pckl")
+		else:
+			raise RuntimeError(f'Cannot find `charge_calibration_measurement` data in {charge_calibration_measurement}.')
+		with open(pcklpath, 'rb') as pcklfile:
+			import math
+			import pickle
+			from scipy.constants import elementary_charge
+			devices, means, stddevs = pickle.load(pcklfile)
+			PIN_charge_theory_Coulomb = elementary_charge * ((31*math.log(active_thickness*1e6) + 128) * active_thickness*1e6)/3.65
+			conversion_factor = {}
+			for i in range(len(devices)):
+				conversion_factor[devices[i]] = (PIN_charge_theory_Coulomb/means[i], stddevs[i] * PIN_charge_theory_Coulomb/(means[i]**2))
+	
 	with Vitorino.verify_no_errors_context():
 		collected_charge_data = []
 		charge_data = {}
 		for measurement_name in read_measurement_list(Vitorino.measurement_base_path):
+			handler = measurements.MeasurementHandler(measurement_name)
 			try:
-				plot_collected_charge(
-					Vitorino.measurement_base_path.parent/Path(measurement_name),
-					force = False,
-					n_bootstrap = 33,
+				collected_charge_beta_scan_single_voltage(
+					handler.measurement_base_path,
+					force = True,
+					n_bootstrap = 0,
 				)
-				df = pandas.read_csv(Vitorino.measurement_base_path.parent/Path(measurement_name)/Path('plot_collected_charge/results.csv'))
+				df = pandas.read_csv(handler.measurement_base_path/Path('collected_charge_beta_scan_single_voltage/results.csv'))
 			except FileNotFoundError as e:
 				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}, reason: {e}')
 				continue
 			for device_name in set(df['Device name']):
 				collected_charge_data.append(
 					{
-						'Collected charge (V s) x_mpv value_on_data': float(df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to data"')['Value']),
+						'Collected charge (V s) x_mpv value_on_data': float(df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"').query('Type=="fit to original data"')['Value']),
 						'Collected charge (V s) x_mpv mean': df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].mean(),
 						'Collected charge (V s) x_mpv std': df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].std(),
 						'Collected charge (V s) x_mpv median': df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value'].median(),
@@ -158,7 +162,6 @@ def script_core(directory: Path, force: bool=False, average_voltage: int=None, c
 				import pickle
 				pickle.dump([devices, charge_mean, charge_stddev], pcklfile, protocol=-1)
 
-
 if __name__ == '__main__':
 	import argparse
 
@@ -173,25 +176,31 @@ if __name__ == '__main__':
 	)
 	parser.add_argument('-a', '--average',
 		metavar = "voltage",
-		help = "The voltage above which the points should be considered for calculating the average collected charge",
+		help = "The voltage above which the points should be considered for calculating the average collected charge.",
 		type = int,
 		default = None,
 	)
-	parser.add_argument('-c', '--charge',
+	parser.add_argument('-c', '--charge-calibration-measurement',
 		metavar = 'path',
 		dest = "charge",
-		help = "Path to the directory containing the measurement of the average collected charge of the equivalent PIN device",
+		help = "Path to the directory containing the measurement of the average collected charge of the equivalent PIN device.",
 		type = str,
 		default = None,
 	)
 	parser.add_argument('-t', '--thickness',
 		metavar = "thickness",
-		help = "The thickness (in um) to consider for the conversion to the charge produced by the device (Default: 50)",
-		type = int,
-		default = 50,
+		help = "The thickness (in meters) to consider for the conversion to the charge produced by the device (Default: 50e-6).",
+		type = float,
+		default = 50e-6,
 	)
 	args = parser.parse_args()
-	charge_measurement = None
+	charge_calibration_measurement = None
 	if args.charge is not None:
-		charge_measurement = Path(args.charge)
-	script_core(Path(args.directory), force=True, average_voltage=args.average, charge_measurement=charge_measurement, active_thickness=args.thickness)
+		charge_calibration_measurement = Path(args.charge)
+	script_core(
+		Path(args.directory), 
+		force = True, 
+		average_voltage = args.average, 
+		charge_calibration_measurement = charge_calibration_measurement, 
+		active_thickness = args.thickness,
+	)

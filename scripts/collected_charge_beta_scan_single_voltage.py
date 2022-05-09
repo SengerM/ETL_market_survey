@@ -7,10 +7,22 @@ import numpy as np
 from grafica.plotly_utils.utils import scatter_histogram
 from clean_beta_scan import binned_fit_langauss, hex_to_rgba
 from landaupy import landau, langauss # https://github.com/SengerM/landaupy
-
+import warnings
 from utils import resample_measured_data
+import measurements
 
-def script_core(directory: Path, force=False, n_bootstrap=0):
+def script_core(directory: Path, force=False, n_bootstrap:int=0):
+	"""Calculates the collected charge in a beta scan at a single voltage
+	by doing a Langauss fit to the data.
+	
+	Parameters
+	----------
+	n_bootstrap: int
+		If `0`, then the script runs only once on the data. If `>0` the 
+		script is run several times, the first time on the original data
+		and the successive times on resampled data. All the results are
+		then stored in a CSV file.
+	"""
 	Abraão = Bureaucrat(
 		directory,
 		new_measurement = False,
@@ -21,13 +33,17 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		return
 
 	with Abraão.verify_no_errors_context():
+		if measurements.measurement_type(Abraão.measurement_name) != 'beta fixed voltage':
+			raise NotImplementedError(f'This script is supposed to process a measurement of type "beta fixed voltage", but received one of type {repr(measurements.measurement_type(Vitorino.measurement_name))}.')
+		# ~ The following lines are commented because this mechanism is not yet implemented in the beta scan script...
+		# ~ if not Abraão.job_successfully_completed_by_script('beta_scan.py'):
+			# ~ raise RuntimeError(f'This script requires `beta_scan.py` to have been run successfully before, but this does not seem to be the case for measurement {Abraão.measurement_name}.')
 		try:
 			measured_data_df = pandas.read_feather(Abraão.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.fd'))
 		except FileNotFoundError:
 			measured_data_df = pandas.read_csv(Abraão.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.csv'))
 
-		beta_scan_was_cleaned = Abraão.job_successfully_completed_by_script('clean_beta_scan.py')
-		if beta_scan_was_cleaned:
+		if Abraão.job_successfully_completed_by_script('clean_beta_scan.py'): # if beta_scan was cleaned...
 			df = pandas.read_feather(Abraão.processed_by_script_dir_path('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
 			measured_data_df = measured_data_df.set_index('n_trigger')
@@ -46,8 +62,6 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		colors = iter(px.colors.qualitative.Plotly)
 		results_data = []
 		for n_bootstrap_iter in range(n_bootstrap+1):
-			# ~ if n_bootstrap_iter > 0:
-				# ~ raise NotImplementedError(f'Cannot perform bootstrap at the moment, there is a strange error in Pandas and I dont have time to fix now.')
 			if n_bootstrap_iter == 0:
 				this_iteration_data_df = measured_data_df
 			else:
@@ -64,7 +78,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 						'Variable': 'Collected charge (V s) x_mpv',
 						'Device name': device_name,
 						'Value': popt[0],
-						'Type': 'fit to data' if n_bootstrap_iter == 0 else 'bootstrapped fit to resampled data',
+						'Type': 'fit to original data' if n_bootstrap_iter == 0 else 'fit to resampled data',
 					}
 				)
 
