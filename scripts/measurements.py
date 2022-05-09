@@ -6,7 +6,7 @@ from scipy.stats import median_abs_deviation
 import numpy as np
 from datetime import datetime
 
-MEASUREMENTS_DATA_PATH = Path('../../measurements_data')
+MEASUREMENTS_DATA_PATH = Path.home()/Path('cernbox/projects/ETL_market_survey/measurements_data')
 
 def measurement_type(measurement_name: str) -> str:
 	"""Returns the type of measurement (beta scan, TCT scan, IV, etc.).
@@ -62,7 +62,10 @@ def read_and_preprocess_measurement_TCT_1DScan_fixed_voltage(measurement_name: s
 	data_df: pandas.DataFrame
 		Data frame with the data.
 	"""
-	data_df = pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('parse_waveforms_from_scan')/Path('data.fd'))
+	try:
+		data_df = pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('parse_waveforms_from_scan')/Path('data.fd'))
+	except FileNotFoundError:
+		data_df = pandas.read_feather(MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('parse_waveforms_from_scan_1D')/Path('data.fd'))
 	return data_df
 
 def read_and_preprocess_IV_curve_done_at_the_beta_setup(measurement_name: str):
@@ -102,6 +105,10 @@ class MeasurementHandler:
 	@property
 	def measurement_name(self) -> str:
 		return self._measurement_name
+	
+	@property
+	def measurement_base_path(self) -> Path:
+		return MEASUREMENTS_DATA_PATH/Path(self.measurement_name)
 	
 	@property
 	def measurement_when(self) -> datetime:
