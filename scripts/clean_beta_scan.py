@@ -245,6 +245,7 @@ def script_core(directory: Path, plot_waveforms=False):
 			waveforms_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('waveforms.csv'))
 
 		waveforms_df = waveforms_df.set_index('n_trigger')
+		waveforms_df['Accepted'] = True # Accept all triggers.
 		try:
 			waveforms_df['Accepted'] = filtered_triggers_df
 		except NameError:
