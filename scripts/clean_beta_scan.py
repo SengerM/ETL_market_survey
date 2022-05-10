@@ -185,6 +185,97 @@ def apply_mva(data_df, plot_path, max_pca_components = 6, max_kmeans_clusters = 
 
 	return (data_df, new_columns)
 
+def plot_mva(data_df, plot_path, max_pca_components = 6, measurement_name="", scatter_columns=[], selection_column = None):
+	# Plot first two components of PCA for both devices
+	pca_scatter_columns = scatter_columns
+	(plot_path/Path('PCA')).mkdir(exist_ok=True, parents=True)
+	for device_name in set(data_df['device_name']):
+		scatter_opt = {
+			'dimensions': sorted(set(["PC1 {}".format(device_name), "PC2 {}".format(device_name)] + pca_scatter_columns)),
+			'title': "PCA of {} scatter matrix plot<br><sup>Measurement: {}</sup>".format(device_name, measurement_name),
+			'symbol': 'device_name',
+			'hover_data': ['n_trigger'],
+		}
+		if selection_column is not None:
+			scatter_opt['color'] = selection_column
+			scatter_opt['color_discrete_map'] = {False: 'red', True: 'green'}
+			scatter_opt['symbol_map'] = {True: 'circle', False: 'x'}
+		fig = px.scatter_matrix(
+			data_df,
+			**scatter_opt
+		)
+		fig.update_traces(diagonal_visible=False, showupperhalf=False)
+		for k in range(len(fig.data)):
+			fig.data[k].update(
+				selected = dict(
+					marker = dict(
+						opacity = 1,
+						color = 'black',
+					)
+				),
+				# ~ unselected = dict(
+					# ~ marker = dict(
+						# ~ opacity = 0.01
+					# ~ )
+				# ~ ),
+			)
+		if selection_column is None:
+			fig.write_html(
+				str(plot_path/Path('PCA/scatter_matrix_{}.html'.format(device_name))),
+				include_plotlyjs = 'cdn',
+			)
+		else:
+			fig.write_html(
+				str(plot_path/Path('PCA/selected_scatter_matrix_{}.html'.format(device_name))),
+				include_plotlyjs = 'cdn',
+			)
+
+	# Plot PCA correlation
+	pca_correlation_columns = []
+	max_pca_correlation = min(4,max_pca_components)
+	for device_name in set(data_df['device_name']):
+		for component in range(max_pca_correlation):
+			pca_correlation_columns += ["PC{} {}".format(component+1, device_name)]
+	scatter_opt = {
+		'dimensions': sorted(set(pca_correlation_columns)),
+		'title': "PCA correlation plot<br><sup>Measurement: {}</sup>".format(measurement_name),
+		'symbol': 'device_name',
+		'hover_data': ['n_trigger'],
+	}
+	if selection_column is not None:
+		scatter_opt['color'] = selection_column
+		scatter_opt['color_discrete_map'] = {False: 'red', True: 'green'}
+		scatter_opt['symbol_map'] = {True: 'circle', False: 'x'}
+	fig = px.scatter_matrix(
+		data_df,
+		**scatter_opt
+	)
+	fig.update_traces(diagonal_visible=False, showupperhalf=False)
+	for k in range(len(fig.data)):
+		fig.data[k].update(
+			selected = dict(
+				marker = dict(
+					opacity = 1,
+					color = 'black',
+				)
+			),
+			# ~ unselected = dict(
+				# ~ marker = dict(
+					# ~ opacity = 0.01
+				# ~ )
+			# ~ ),
+		)
+	if selection_column is None:
+		fig.write_html(
+			str(plot_path/Path('PCA/correlation.html')),
+			include_plotlyjs = 'cdn',
+		)
+	else:
+		fig.write_html(
+			str(plot_path/Path('PCA/selected_correlation.html')),
+			include_plotlyjs = 'cdn',
+		)
+
 def script_core(directory: Path, plot_waveforms=False):
 	John = Bureaucrat(
 		directory,
@@ -205,10 +296,9 @@ def script_core(directory: Path, plot_waveforms=False):
 
 	with John.verify_no_errors_context():
 		# TODO: Maybe we need to add this line to remove NaN to the other scripts
-		# Clean the dataset of the NaN values (we need to transform it a bit because they are pairs of rows)
 		measured_data_df = clean_data(measured_data_df)
 
-		measured_data_df = apply_mva(measured_data_df, mva_dir_path, ignore_columns=[
+		measured_data_df, new_columns = apply_mva(measured_data_df, mva_dir_path, ignore_columns=[
 			'Temperature (°C)',
 			'device_name',
 			'Humidity (%RH)',
@@ -217,6 +307,19 @@ def script_core(directory: Path, plot_waveforms=False):
 			'Bias voltage (V)',
 			'n_trigger',
 		])
+
+		# Make MVA plots before selection cuts
+		plot_mva(measured_data_df, mva_dir_path,
+			measurement_name=John.measurement_name,
+			scatter_columns=[
+				"Time over noise (s)",
+				"Amplitude (V)",
+				"Collected charge (V s)",
+				"t_50 (s)",
+				"Peak start time (s)",
+				"Rise time (s)"
+			]
+		)
 
 		try:
 			cuts_df = pandas.read_csv(cuts_file_path)
@@ -360,6 +463,20 @@ def script_core(directory: Path, plot_waveforms=False):
 		fig.write_html(
 			str(John.processed_data_dir_path/Path('scatter_matrix.html')),
 			include_plotlyjs = 'cdn',
+		)
+
+		# Make MVA plots after selection cuts
+		plot_mva(measured_data_df, mva_dir_path,
+			measurement_name=John.measurement_name,
+			scatter_columns=[
+				"Time over noise (s)",
+				"Amplitude (V)",
+				"Collected charge (V s)",
+				"t_50 (s)",
+				"Peak start time (s)",
+				"Rise time (s)"
+			],
+			selection_column = 'Accepted'
 		)
 
 	# Plot waveforms ---
