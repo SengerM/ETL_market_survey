@@ -6,16 +6,24 @@ from scipy.stats import median_abs_deviation
 
 k_MAD_TO_STD = 1.4826 # https://en.wikipedia.org/wiki/Median_absolute_deviation#Relation_to_standard_deviation
 
+def clean_data(data_df):
+	data_df_pivot = data_df.pivot(
+		index = 'n_trigger',
+		columns= 'device_name',
+		values = list(set(data_df.columns) - {'device_name','n_trigger'})
+	)
+	return data_df_pivot.dropna().stack().reset_index()
+
 def read_measurement_list(directory: Path) -> list:
 	"""Try to read a list of "sub-measurements", e.g. if `directory` points
 	to a voltage scan then the list of sub-measurements contains the
 	measurement name of each single voltage point.
-	
+
 	Parameters
 	----------
 	directory: Path
 		Path to the main directory of a measurement.
-	
+
 	Returns
 	-------
 	measurements_list: list of str
@@ -42,8 +50,8 @@ def resample_measured_data(measured_data_df):
 	return resampled_df
 
 def tag_left_right_pad(data_df):
-	"""Given a data_df with data from a single 1D scan of two pads of a 
-	device, this function creates a new column indicating if the pad is 
+	"""Given a data_df with data from a single 1D scan of two pads of a
+	device, this function creates a new column indicating if the pad is
 	"left" or "right" and returns such column as a data frame with the
 	same index as `data_df`.
 	"""
@@ -63,9 +71,9 @@ def tag_left_right_pad(data_df):
 	return pad_df
 
 def calculate_normalized_collected_charge(df:pandas.DataFrame, window_size:float, laser_sigma:float=9e-6, inter_pixel_distance:float=100e-6):
-	"""Calculates the normalized collected charge between 0 and 1 using 
+	"""Calculates the normalized collected charge between 0 and 1 using
 	the mean values, not just the `max` and `min`.
-	
+
 	Parameters
 	----------
 	df: pandas.DataFrame
@@ -79,10 +87,10 @@ def calculate_normalized_collected_charge(df:pandas.DataFrame, window_size:float
 	inter_pixel_distance: float, default 100e-6
 		Approximate value of the inter-pixel distance in order to roughly
 		know where to expect signal.
-	
+
 	Returns
 	-------
-	Return a single-column-dataframe containing the value of the 
+	Return a single-column-dataframe containing the value of the
 	normalized collected charge at each row with the same index as `df`.
 	"""
 	normalized_charge_df = pandas.DataFrame(index=df.index)
@@ -113,9 +121,9 @@ def mean_std(df, by):
 	)
 
 	mean_df = utils.mean_std(df, by=['n','x'])
-	
+
 	produces:
-	
+
 	   n  x    y mean     y std
 	0  1  0  1.250000  0.500000
 	1  2  1  2.666667  0.577350
