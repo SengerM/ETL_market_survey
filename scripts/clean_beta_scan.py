@@ -185,6 +185,22 @@ def apply_mva(data_df, plot_path, max_pca_components = 6, max_kmeans_clusters = 
 
 	return (data_df, new_columns)
 
+def update_scatter_plot_selection(fig):
+	for k in range(len(fig.data)):
+		fig.data[k].update(
+			selected = dict(
+				marker = dict(
+					opacity = 1,
+					color = 'black',
+				)
+			),
+			# ~ unselected = dict(
+				# ~ marker = dict(
+					# ~ opacity = 0.01
+				# ~ )
+			# ~ ),
+		)
+
 def plot_mva(data_df, plot_path, max_pca_components = 6, measurement_name="", scatter_columns=[], selection_column = None):
 	# Plot first two components of PCA for both devices
 	pca_scatter_columns = scatter_columns
@@ -205,20 +221,7 @@ def plot_mva(data_df, plot_path, max_pca_components = 6, measurement_name="", sc
 			**scatter_opt
 		)
 		fig.update_traces(diagonal_visible=False, showupperhalf=False)
-		for k in range(len(fig.data)):
-			fig.data[k].update(
-				selected = dict(
-					marker = dict(
-						opacity = 1,
-						color = 'black',
-					)
-				),
-				# ~ unselected = dict(
-					# ~ marker = dict(
-						# ~ opacity = 0.01
-					# ~ )
-				# ~ ),
-			)
+		update_scatter_plot_selection(fig)
 		if selection_column is None:
 			fig.write_html(
 				str(plot_path/Path('PCA/scatter_matrix_{}.html'.format(device_name))),
@@ -251,20 +254,7 @@ def plot_mva(data_df, plot_path, max_pca_components = 6, measurement_name="", sc
 		**scatter_opt
 	)
 	fig.update_traces(diagonal_visible=False, showupperhalf=False)
-	for k in range(len(fig.data)):
-		fig.data[k].update(
-			selected = dict(
-				marker = dict(
-					opacity = 1,
-					color = 'black',
-				)
-			),
-			# ~ unselected = dict(
-				# ~ marker = dict(
-					# ~ opacity = 0.01
-				# ~ )
-			# ~ ),
-		)
+	update_scatter_plot_selection(fig)
 	if selection_column is None:
 		fig.write_html(
 			str(plot_path/Path('PCA/correlation.html')),
@@ -446,20 +436,7 @@ def script_core(directory: Path, plot_waveforms=False):
 			hover_data = ['n_trigger'],
 		)
 		fig.update_traces(diagonal_visible=False, showupperhalf=False)
-		for k in range(len(fig.data)):
-			fig.data[k].update(
-				selected = dict(
-					marker = dict(
-						opacity = 1,
-						color = 'black',
-					)
-				),
-				# ~ unselected = dict(
-					# ~ marker = dict(
-						# ~ opacity = 0.01
-					# ~ )
-				# ~ ),
-			)
+		update_scatter_plot_selection(fig)
 		fig.write_html(
 			str(John.processed_data_dir_path/Path('scatter_matrix.html')),
 			include_plotlyjs = 'cdn',
