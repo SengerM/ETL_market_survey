@@ -4,6 +4,7 @@ from bureaucrat.Bureaucrat import Bureaucrat
 import utils
 from scipy.stats import median_abs_deviation
 import numpy as np
+from datetime import datetime
 
 MEASUREMENTS_DATA_PATH = Path('../../measurements_data')
 
@@ -101,6 +102,15 @@ class MeasurementHandler:
 	@property
 	def measurement_name(self) -> str:
 		return self._measurement_name
+	
+	@property
+	def measurement_when(self) -> datetime:
+		if not hasattr(self, '_measurement_when'):
+			try:
+				self._measurement_when = datetime.strptime(self.measurement_name[:14], '%Y%m%d%H%M%S')
+			except Exception as e:
+				raise RuntimeError(f'Cannot get `measurement_when` for measurement {repr(self.measurement_name)}, reason: {repr(e)}.')
+		return self._measurement_when
 
 	@property
 	def measurement_type(self) -> str:
@@ -249,18 +259,39 @@ class MeasurementHandler:
 			self._measured_devices = measured_devices
 		return self._measured_devices
 
+def create_table_of_measurements():
+	"""Creates a table with information about all the measurements that
+	are currently accessible, like the name, the type, the measured 
+	devices, etc.
+	
+	Returns
+	-------
+	measurements_df: pandas.DataFrame
+		The table...
+	"""
+	measurements_df = pandas.DataFrame(columns=['Measurement name','Measurement when','Measurement type','Measured device(s)'])
+	for measurement_dir_path in sorted(MEASUREMENTS_DATA_PATH.iterdir()):
+		handler = MeasurementHandler(measurement_dir_path.parts[-1])
+		try:
+			measured_devices = handler.measured_devices
+		except RuntimeError:
+			measured_devices = 'unknown'
+		measurements_df = pandas.concat(
+			[
+				measurements_df,
+				pandas.DataFrame(
+					{
+						'Measurement name': handler.measurement_name,
+						'Measurement when': handler.measurement_when,
+						'Measurement type': handler.measurement_type,
+						'Measured device(s)': measured_devices,
+					},
+					index = [0],
+				)
+			],
+			ignore_index = True,
+		)
+	return measurements_df
+
 if __name__ == '__main__':
-	MEASUREMENTS = {
-		'20220404021350_MS07_1DScan_228V',
-		'20220404021350_MS07_1DScan_228V',
-		# ~ '20220403214116_MS07_sweeping_bias_voltage',
-		# ~ '20220328170454_MS03_IV_Curve',
-		# ~ '20220405203845_MS08_3_probe_station',
-		# ~ '20220317155531_BetaScan_SpeedyGonzalez12_at_98V',
-	}
-	for m in MEASUREMENTS:
-		handler = MeasurementHandler(m)
-		print(handler.measurement_name)
-		print(handler.measurement_type)
-		handler.tag_left_and_right_pads()
-		print(handler.measurement_data)
+	create_table_of_measurements().set_index('Measurement name').to_excel('../../table_of_measurements (AUTOMATICALLY GENERATED).xlsx')
