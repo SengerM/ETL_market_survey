@@ -1,8 +1,10 @@
+from math import nan
 from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
 from pathlib import Path
 import pandas
 import plotly.graph_objects as go
 import plotly.express as px
+import plotly.figure_factory as ff
 import numpy as np
 from statsmodels.distributions.empirical_distribution import ECDF
 from scipy.interpolate import InterpolatedUnivariateSpline #from scipy.interpolate import interp1d
@@ -14,6 +16,11 @@ from scipy.optimize import curve_fit
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
 from plotly.subplots import make_subplots
 
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import sklearn.cluster as cluster
+import sklearn.metrics as metrics
+import scipy.cluster.hierarchy as sch
 
 from utils import clean_data
 
@@ -80,6 +87,104 @@ def binned_fit_langauss(samples, bins='auto', nan='remove'):
 	)
 	return popt, pcov, hist, bin_centers
 
+def apply_mva(data_df, plot_path, max_pca_components = 6, max_kmeans_clusters = 12, ignore_columns = []):
+	new_df=[]
+	new_columns=[]
+	cluster_columns=[]
+
+	unused_columns = ignore_columns
+
+	for device_name in set(data_df['device_name']):
+		# Try PCA
+		print("Applying Multivariate Analysis to {} data".format(device_name))
+		device_data_df = data_df.loc[data_df['device_name'] == device_name].drop(
+			unused_columns,
+			axis=1,
+		)
+		device_sc = StandardScaler()
+		device_sc.fit(device_data_df)
+		device_pca = PCA(n_components=max_pca_components) # Immediately do the max components because if we want less, we can just ignore the higher components
+		device_pca.fit(device_sc.transform(device_data_df))
+		print("  The PCA explains the variance to: {}".format(device_pca.explained_variance_ratio_))
+
+		tmp_data = device_pca.transform(device_sc.transform(data_df.drop(unused_columns,axis=1)))
+		pca_columns = []
+		for column in range(max_pca_components):
+			pca_columns += ["PC{} {}".format(column+1, device_name)]
+		new_df += [pandas.DataFrame(tmp_data, columns=pca_columns)]
+		new_columns += pca_columns
+
+		# Try k-means clustering
+		distortions = []
+		silhouette_scores = []
+		K = range(1,max_kmeans_clusters)
+		for cluster_size in K:
+			kmeans = cluster.KMeans(n_clusters=cluster_size, init='k-means++', random_state=200)
+			kmeans = kmeans.fit(device_data_df)
+			distortions.append(kmeans.inertia_)
+			if cluster_size > 1:
+				labels = kmeans.labels_
+				silhouette_score = metrics.silhouette_score(
+					device_data_df,
+					labels,
+					metric='euclidean',
+					#sample_size=1000,
+					random_state=200,
+				)
+				silhouette_scores.append(silhouette_score)
+			else:
+				silhouette_scores.append(np.nan)
+			identified_clusters = kmeans.predict(data_df.drop(unused_columns,axis=1))
+			column = "k-means {} Cluster {}".format(cluster_size, device_name)
+			new_df += [pandas.DataFrame(identified_clusters, columns=[column])]
+			cluster_columns += [column]
+			new_columns += [column]
+		df = pandas.DataFrame({'Clusters': K, 'Distortions': distortions, 'Silhouette Score': silhouette_scores})
+		fig = make_subplots(specs=[[{"secondary_y": True}]])
+		fig.add_trace(
+		    go.Scatter(x=df['Clusters'], y=df['Distortions'], name="Distortions"),
+			secondary_y=False,
+		)
+		fig.add_trace(
+		    go.Scatter(x=df['Clusters'], y=df['Silhouette Score'], name='Silhouette Score'),
+			secondary_y=True,
+		)
+		fig.update_layout(
+			title_text="Cluster number selection for {}".format(device_name)
+		)
+		fig.update_xaxes(title_text="Clusters")
+		fig.update_yaxes(title_text='Distortions', secondary_y=False)
+		fig.update_yaxes(title_text='Silhouette Score', secondary_y=True)
+		(plot_path/Path('kMeans')).mkdir(exist_ok=True, parents=True)
+		fig.write_html(
+			str(plot_path/Path('kMeans/selection_clusters_{}.html'.format(device_name))),
+			include_plotlyjs = 'cdn',
+		)
+
+		# Try Hierarchical Clustering (the plots from this are slow to display)
+		fig = ff.create_dendrogram(device_data_df.astype(float),
+								linkagefun = lambda x: sch.linkage(x, "ward"),)
+		fig.update_layout(title = 'Hierarchical Clustering for {}'.format(device_name),
+							yaxis_title='Euclidean Distance')
+		(plot_path/Path('Hierarchical_Clustering')).mkdir(exist_ok=True, parents=True)
+		fig.write_html(
+			str(plot_path/Path('Hierarchical_Clustering/{}.html'.format(device_name))),
+			include_plotlyjs = 'cdn',
+		)
+
+		# Try Affinity Propagation (does not work well with this dataset, probably needs tuning)
+		#ap = cluster.AffinityPropagation(random_state = 100)
+		#ap = ap.fit(device_data_df)
+		#identified_clusters = ap.predict(measured_data_df.drop(unused_columns,axis=1))
+		#new_df += [pandas.DataFrame(identified_clusters, columns=["Affinity Propagation Cluster {}".format(device_name)])]
+		#cluster_columns += ["Affinity Propagation Cluster {}".format(device_name)]
+
+	# Add the new data columns to the dataframe
+	for df in new_df:
+		data_df = data_df.join(df)
+
+	return (data_df, new_columns)
+
 def script_core(directory: Path, plot_waveforms=False):
 	John = Bureaucrat(
 		directory,
@@ -88,6 +193,8 @@ def script_core(directory: Path, plot_waveforms=False):
 
 	plots_dir_path = John.processed_data_dir_path/Path('plots')
 	plots_dir_path.mkdir(exist_ok=True, parents=True)
+	mva_dir_path = John.processed_data_dir_path/Path('MVA')
+	mva_dir_path.mkdir(exist_ok=True, parents=True)
 
 	cuts_file_path = John.measurement_base_path/Path('cuts.csv')
 
@@ -100,6 +207,16 @@ def script_core(directory: Path, plot_waveforms=False):
 		# TODO: Maybe we need to add this line to remove NaN to the other scripts
 		# Clean the dataset of the NaN values (we need to transform it a bit because they are pairs of rows)
 		measured_data_df = clean_data(measured_data_df)
+
+		measured_data_df = apply_mva(measured_data_df, mva_dir_path, ignore_columns=[
+			'Temperature (°C)',
+			'device_name',
+			'Humidity (%RH)',
+			'Bias current (A)',
+			'When',
+			'Bias voltage (V)',
+			'n_trigger',
+		])
 
 		try:
 			cuts_df = pandas.read_csv(cuts_file_path)
@@ -213,7 +330,7 @@ def script_core(directory: Path, plot_waveforms=False):
 				include_plotlyjs = 'cdn',
 			)
 
-		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {'Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'}
+		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {'Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'} - set(new_columns)
 		df = measured_data_df
 		fig = px.scatter_matrix(
 			df,
