@@ -14,6 +14,9 @@ from scipy.optimize import curve_fit
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
 from plotly.subplots import make_subplots
 
+
+from utils import clean_data
+
 SET_OF_COLUMNS_TO_IGNORE = {'n_waveform','n_trigger','When','device_name','Accepted'}
 
 def hex_to_rgba(h, alpha):
@@ -94,6 +97,10 @@ def script_core(directory: Path, plot_waveforms=False):
 		measured_data_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.csv'))
 
 	with John.verify_no_errors_context():
+		# TODO: Maybe we need to add this line to remove NaN to the other scripts
+		# Clean the dataset of the NaN values (we need to transform it a bit because they are pairs of rows)
+		measured_data_df = clean_data(measured_data_df)
+
 		try:
 			cuts_df = pandas.read_csv(cuts_file_path)
 			cuts_df.to_csv(John.processed_data_dir_path/Path(f'cuts.csv'))
@@ -135,7 +142,7 @@ def script_core(directory: Path, plot_waveforms=False):
 				colors = iter(px.colors.qualitative.Plotly)
 				for device_name in sorted(set(measured_data_df['device_name'])):
 					_samples = measured_data_df.query('Accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
-					popt, _, hist, bin_centers = binned_fit_langauss(_samples)
+					popt, _, hist, bin_centers = binned_fit_langauss(_samples, nan="")
 					this_channel_color = next(colors)
 
 					fig.add_trace(
@@ -146,6 +153,7 @@ def script_core(directory: Path, plot_waveforms=False):
 							name = f'Data {device_name}',
 							line = dict(color = this_channel_color),
 							legendgroup = device_name,
+							nan_policy="",
 						)
 					)
 					x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
