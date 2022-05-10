@@ -201,9 +201,8 @@ def update_scatter_plot_selection(fig):
 			# ~ ),
 		)
 
-def plot_mva(data_df, plot_path, max_pca_components = 6, measurement_name="", scatter_columns=[], selection_column = None):
+def plot_mva(data_df, plot_path, max_pca_components = 6, max_kmeans_clusters = 12, measurement_name="", pca_scatter_columns=[], kmeans_scatter_columns=[], selection_column = None):
 	# Plot first two components of PCA for both devices
-	pca_scatter_columns = scatter_columns
 	(plot_path/Path('PCA')).mkdir(exist_ok=True, parents=True)
 	for device_name in set(data_df['device_name']):
 		scatter_opt = {
@@ -266,6 +265,63 @@ def plot_mva(data_df, plot_path, max_pca_components = 6, measurement_name="", sc
 			include_plotlyjs = 'cdn',
 		)
 
+	# Plot kMeans scatter
+	(plot_path/Path('kMeans')).mkdir(exist_ok=True, parents=True)
+	for device_name in set(data_df['device_name']):
+		for clusters in range(1,max_kmeans_clusters):
+			(plot_path/Path('kMeans/{}_Clusters'.format(clusters))).mkdir(exist_ok=True, parents=True)
+			plot_df = data_df
+			scatter_opt = {
+				'dimensions': sorted(set(kmeans_scatter_columns)),
+				'title': "k-Means {} Clusters on {} correlation plot<br><sup>Measurement: {}</sup>".format(clusters, device_name, measurement_name),
+				'symbol': 'device_name',
+				'hover_data': ['n_trigger'],
+				'color': "k-means {} Cluster {}".format(clusters, device_name)
+			}
+			if selection_column is not None:
+				plot_df = data_df.loc[data_df[selection_column]]
+				#data_df["tmp_calc"] = (data_df[selection_column]-0.5)*2
+				#data_df["kMeans Selection Column"] = data_df[['tmp_calc',scatter_opt['color']]].min(axis=1)
+				#scatter_opt['color'] = "kMeans Selection Column"
+				#scatter_opt['color_discrete_map'] = {False: 'red', True: 'green'}
+				#scatter_opt['symbol_map'] = {True: 'circle', False: 'x'}
+			plot_df[scatter_opt['color']] = plot_df[scatter_opt['color']].astype(str)
+			fig = px.scatter_matrix(
+				plot_df,
+				**scatter_opt
+			)
+			fig.update_traces(diagonal_visible=False, showupperhalf=False)
+			update_scatter_plot_selection(fig)
+			if selection_column is None:
+				fig.write_html(
+					str(plot_path/Path('kMeans/{}_Clusters/scatter_matrix_{}.html'.format(clusters, device_name))),
+					include_plotlyjs = 'cdn',
+				)
+			else:
+				fig.write_html(
+					str(plot_path/Path('kMeans/{}_Clusters/selected_scatter_matrix_{}.html'.format(clusters, device_name))),
+					include_plotlyjs = 'cdn',
+				)
+
+			scatter_opt['dimensions'] = sorted(set(["Amplitude (V)", scatter_opt['color']]))
+			fig = px.scatter_matrix(
+				plot_df,
+				**scatter_opt
+			)
+			#fig.update_traces(diagonal_visible=False, showupperhalf=False)
+			update_scatter_plot_selection(fig)
+			if selection_column is None:
+				fig.write_html(
+					str(plot_path/Path('kMeans/{}_Clusters/Amplitude_correlation_{}.html'.format(clusters, device_name))),
+					include_plotlyjs = 'cdn',
+				)
+			else:
+				fig.write_html(
+					str(plot_path/Path('kMeans/{}_Clusters/selected_Amplitude_correlation_{}.html'.format(clusters, device_name))),
+					include_plotlyjs = 'cdn',
+				)
+
+
 def script_core(directory: Path, plot_waveforms=False):
 	John = Bureaucrat(
 		directory,
@@ -301,13 +357,23 @@ def script_core(directory: Path, plot_waveforms=False):
 		# Make MVA plots before selection cuts
 		plot_mva(measured_data_df, mva_dir_path,
 			measurement_name=John.measurement_name,
-			scatter_columns=[
+			pca_scatter_columns=[
 				"Time over noise (s)",
 				"Amplitude (V)",
 				"Collected charge (V s)",
 				"t_50 (s)",
 				"Peak start time (s)",
 				"Rise time (s)"
+			],
+			kmeans_scatter_columns=[
+				"Time over noise (s)",
+				"Amplitude (V)",
+				"Collected charge (V s)",
+				"t_50 (s)",
+				"Peak start time (s)",
+				"Rise time (s)",
+				"Noise (V)",
+				"Time over 50% (s)",
 			]
 		)
 
@@ -445,13 +511,23 @@ def script_core(directory: Path, plot_waveforms=False):
 		# Make MVA plots after selection cuts
 		plot_mva(measured_data_df, mva_dir_path,
 			measurement_name=John.measurement_name,
-			scatter_columns=[
+			pca_scatter_columns=[
 				"Time over noise (s)",
 				"Amplitude (V)",
 				"Collected charge (V s)",
 				"t_50 (s)",
 				"Peak start time (s)",
 				"Rise time (s)"
+			],
+			kmeans_scatter_columns=[
+				"Time over noise (s)",
+				"Amplitude (V)",
+				"Collected charge (V s)",
+				"t_50 (s)",
+				"Peak start time (s)",
+				"Rise time (s)",
+				"Noise (V)",
+				"Time over 50% (s)",
 			],
 			selection_column = 'Accepted'
 		)
