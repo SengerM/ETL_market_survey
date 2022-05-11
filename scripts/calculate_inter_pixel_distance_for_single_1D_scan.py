@@ -53,9 +53,8 @@ def script_core(directory:Path, rough_inter_pixel_distance:float, window_size:fl
 		return
 	
 	with bureaucrat.verify_no_errors_context():
-		for required_script in {'parse_waveforms_from_scan.py'}:
-			if not bureaucrat.job_successfully_completed_by_script(required_script):
-				raise RuntimeError(f'There is no previous successfull run of `{required_script}` for measurement {bureaucrat.measurement_name}, cannot proceed.')
+		if not (bureaucrat.job_successfully_completed_by_script('parse_waveforms_from_scan.py') or bureaucrat.job_successfully_completed_by_script('parse_waveforms_from_scan_1D.py')):
+			raise RuntimeError(f'There is no previous successfull run of `parse_waveforms_from_scan.py` or `parse_waveforms_from_scan_1D.py` for measurement {bureaucrat.measurement_name}, cannot proceed.')
 		
 		measurement_handler = measurements.MeasurementHandler(bureaucrat.measurement_name)
 		measurement_handler.tag_left_and_right_pads()
