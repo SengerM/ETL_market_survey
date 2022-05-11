@@ -8,6 +8,17 @@ from devices_info import devices_info_df
 import numpy as np
 from scipy.constants import elementary_charge
 
+def read_calibration_factor(filepath: Path) -> dict:
+	"""Reads the calibration factor produced by this script and returns
+	a dictionary of the form
+	```
+		{'std (C/V/s)': float, 'mean (C/V/s)': float}
+	```
+	"""
+	calibration_factor = pandas.read_csv(filepath).set_index('Unnamed: 0')
+	calibration_factor = {_: calibration_factor.loc[_,'0'] for _ in {'mean (C/V/s)','std (C/V/s)'}}
+	return calibration_factor
+
 def script_core(beta_scans_on_PINs:list, PINs_names:list):
 	"""Creates charge calibration data to convert from `V*s` to `Coulomb`
 	using data from beta scans performed on PIN devices.
@@ -43,15 +54,23 @@ def script_core(beta_scans_on_PINs:list, PINs_names:list):
 		collected_charge_single_values_df = measured_collected_charge_df.query('`Bias voltage (V)`>=100').groupby('Device name').agg({'Collected charge (V s) x_mpv value_on_data': [np.mean, np.std]})
 		
 		thickness = 50e-6 # Hardcoded here because it is the same for all the FBK devices.
-		PIN_charge_in_theory_in_Coulomb = elementary_charge*(31*np.log(thickness/1e-6)+128)*thickness/1e-6/3.65 # https://sengerm.github.io/html-github-hosting/210721_Commissioning_of_Chubut_board/210721_Commissioning_of_Chubut_board.html
-		conversion_factor = PIN_charge_in_theory_in_Coulomb/collected_charge_single_values_df['Collected charge (V s) x_mpv value_on_data'].mean()
+		PIN_charge_in_theory_in_Coulomb_mean = elementary_charge*(31*np.log(thickness/1e-6)+128)*thickness/1e-6/3.65 # https://sengerm.github.io/html-github-hosting/210721_Commissioning_of_Chubut_board/210721_Commissioning_of_Chubut_board.html
+		PIN_charge_in_theory_in_Coulomb_std = 0 # I don't know it...
+		PIN_charge_measured_in_Volt_times_second_mean = collected_charge_single_values_df['Collected charge (V s) x_mpv value_on_data'].mean()['mean']
+		PIN_charge_measured_in_Volt_times_second_std = collected_charge_single_values_df['Collected charge (V s) x_mpv value_on_data'].mean()['std']
+		conversion_factor = pandas.Series(
+			{
+				'mean (C/V/s)': PIN_charge_in_theory_in_Coulomb_mean/PIN_charge_measured_in_Volt_times_second_mean,
+				'std (C/V/s)': (PIN_charge_in_theory_in_Coulomb_std**2 + PIN_charge_measured_in_Volt_times_second_std)**.5,
+			}
+		)
 		conversion_factor.to_csv(KalEl.processed_data_dir_path/Path('conversion_factor (Coulomb over Volt over second).csv'))
 		
 		for col in measured_collected_charge_df.columns:
 			if '(V s)' in col:
-				measured_collected_charge_df[col.replace('(V s)','(C)')] = measured_collected_charge_df[col]*conversion_factor['mean']
+				measured_collected_charge_df[col.replace('(V s)','(C)')] = measured_collected_charge_df[col]*conversion_factor['mean (C/V/s)']
 				if 'std' in col:
-					measured_collected_charge_df[col.replace('(V s)','(C)')] = (measured_collected_charge_df[col.replace('(V s)','(C)')]**2 + conversion_factor['std']**2)**.5
+					measured_collected_charge_df[col.replace('(V s)','(C)')] = (measured_collected_charge_df[col.replace('(V s)','(C)')]**2 + conversion_factor['std (C/V/s)']**2)**.5
 		
 		fig = plotly_utils.line(
 			title = f'Collected charge vs bias voltage with beta source<br><sup>Measurement: {KalEl.measurement_name}</sup>',

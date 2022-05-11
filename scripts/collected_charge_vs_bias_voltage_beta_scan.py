@@ -7,6 +7,7 @@ import numpy
 from scipy.stats import median_abs_deviation
 from utils import read_measurement_list, get_voltage_from_measurement
 from collected_charge_beta_scan_single_voltage import script_core as collected_charge_beta_scan_single_voltage
+from create_calibration_for_Coulomb_conversion_in_beta_setup import read_calibration_factor
 import measurements
 
 def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False):
@@ -33,11 +34,6 @@ def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False)
 	if force == False and Vitorino.job_successfully_completed_by_script('this script'):
 		return
 	
-	if Coulomb_calibration is not None:
-		conversion_factor_Coulomb_over_Volt_over_second = pandas.read_csv(Coulomb_calibration/Path('create_calibration_for_Coulomb_conversion_in_beta_setup/conversion_factor (Coulomb over Volt over second).csv'))
-		print(conversion_factor_Coulomb_over_Volt_over_second)
-	# ~ a
-	
 	with Vitorino.verify_no_errors_context():
 		collected_charge_data = []
 		for measurement_name in read_measurement_list(Vitorino.measurement_base_path):
@@ -62,20 +58,20 @@ def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False)
 						'Collected charge (V s) x_mpv MAD_std': median_abs_deviation(df.query(f'`Device name`=="{device_name}"').query('Variable=="Collected charge (V s) x_mpv"')['Value']),
 						'Measurement name': measurement_name,
 						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
-						'Fluence (neq/cm^2)/1e14': 0,
 						'Device name': device_name,
 					}
 				)
 		collected_charge_df = pandas.DataFrame.from_records(collected_charge_data)
-
-		df = collected_charge_df.sort_values(by='Bias voltage (V)')
+		collected_charge_df = collected_charge_df.sort_values(by='Bias voltage (V)')
+		
 		fig = plotly_utils.line(
 			title = f'Collected charge vs bias voltage with beta source<br><sup>Measurement: {Vitorino.measurement_name}</sup>',
-			data_frame = df,
+			data_frame = collected_charge_df,
 			x = 'Bias voltage (V)',
 			y = 'Collected charge (V s) x_mpv value_on_data',
 			error_y = 'Collected charge (V s) x_mpv std',
-			hover_data = sorted(df),
+			error_y_mode = 'band',
+			hover_data = sorted(collected_charge_df),
 			markers = 'circle',
 			labels = {
 				'Collected charge (V s) x_mpv value_on_data': 'Collected charge (V s)',
@@ -86,6 +82,26 @@ def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False)
 			str(Vitorino.processed_data_dir_path/Path('collected charge vs bias voltage.html')),
 			include_plotlyjs = 'cdn',
 		)
+		
+		if Coulomb_calibration is not None:
+			conversion_factor = read_calibration_factor(Coulomb_calibration/Path('create_calibration_for_Coulomb_conversion_in_beta_setup/conversion_factor (Coulomb over Volt over second).csv'))
+			collected_charge_df['Collected charge (C)'] = collected_charge_df['Collected charge (V s) x_mpv median']*conversion_factor['mean (C/V/s)']
+			collected_charge_df['Collected charge (C) std'] = ((collected_charge_df['Collected charge (V s) x_mpv MAD_std']*conversion_factor['mean (C/V/s)'])**2 + (collected_charge_df['Collected charge (V s) x_mpv median']*conversion_factor['std (C/V/s)'])**2)**.5
+			fig = plotly_utils.line(
+				title = f'Collected charge vs bias voltage with beta source<br><sup>Measurement: {Vitorino.measurement_name}</sup>',
+				data_frame = collected_charge_df,
+				x = 'Bias voltage (V)',
+				y = 'Collected charge (C)',
+				error_y = 'Collected charge (C) std',
+				error_y_mode = 'band',
+				hover_data = sorted(collected_charge_df),
+				markers = 'circle',
+				color = 'Device name',
+			)
+			fig.write_html(
+				str(Vitorino.processed_data_dir_path/Path('collected charge vs bias voltage Coulomb.html')),
+				include_plotlyjs = 'cdn',
+			)
 
 		collected_charge_df.to_csv(Vitorino.processed_data_dir_path/Path('collected_charge_vs_bias_voltage.csv'), index=False)
 
@@ -101,8 +117,17 @@ if __name__ == '__main__':
 		dest = 'directory',
 		type = str,
 	)
+	parser.add_argument(
+		'--Coulomb-calibration',
+		metavar = 'path',
+		help = 'Path to the base directory of a Coulomb calibration "measurement" produced by the script `create_calibration_for_Coulomb_conversion_in_beta_setup.py`.',
+		required = True,
+		dest = 'coulomb_calibration',
+		type = str,
+	)
 	args = parser.parse_args()
 	script_core(
-		Path(args.directory), 
-		force = True, 
+		directory = Path(args.directory),
+		Coulomb_calibration = Path(args.coulomb_calibration),
+		force = True,
 	)
