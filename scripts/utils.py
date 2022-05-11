@@ -10,12 +10,15 @@ def remove_nans_grouping_by_n_trigger(data_df):
 	"""Clean a dataset of the NaN values (we need to transform it a bit 
 	because they are pairs of rows).
 	"""
+	original_dtypes = data_df.dtypes
 	data_df_pivot = data_df.pivot(
 		index = 'n_trigger',
 		columns= 'device_name',
 		values = list(set(data_df.columns) - {'device_name','n_trigger'})
 	)
-	return data_df_pivot.dropna().stack().reset_index()
+	df = data_df_pivot.dropna().stack().reset_index()
+	df = df.astype(original_dtypes)
+	return df
 
 def read_measurement_list(directory: Path) -> list:
 	"""Try to read a list of "sub-measurements", e.g. if `directory` points
