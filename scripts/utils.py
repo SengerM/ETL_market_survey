@@ -6,8 +6,10 @@ from scipy.stats import median_abs_deviation
 
 k_MAD_TO_STD = 1.4826 # https://en.wikipedia.org/wiki/Median_absolute_deviation#Relation_to_standard_deviation
 
-def clean_data(data_df):
-	"""Clean a dataset of the NaN values (we need to transform it a bit because they are pairs of rows)"""
+def remove_nans_grouping_by_n_trigger(data_df):
+	"""Clean a dataset of the NaN values (we need to transform it a bit 
+	because they are pairs of rows).
+	"""
 	data_df_pivot = data_df.pivot(
 		index = 'n_trigger',
 		columns= 'device_name',

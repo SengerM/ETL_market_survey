@@ -22,7 +22,7 @@ import sklearn.cluster as cluster
 import sklearn.metrics as metrics
 import scipy.cluster.hierarchy as sch
 
-from utils import clean_data
+from utils import remove_nans_grouping_by_n_trigger
 
 SET_OF_COLUMNS_TO_IGNORE = {'n_waveform','n_trigger','When','device_name','Accepted'}
 
@@ -342,7 +342,7 @@ def script_core(directory: Path, plot_waveforms=False):
 
 	with John.verify_no_errors_context():
 		# TODO: Maybe we need to add this line to remove NaN to the other scripts
-		measured_data_df = clean_data(measured_data_df)
+		measured_data_df = remove_nans_grouping_by_n_trigger(measured_data_df)
 
 		measured_data_df, new_columns = apply_mva(measured_data_df, mva_dir_path, ignore_columns=[
 			'Temperature (°C)',
