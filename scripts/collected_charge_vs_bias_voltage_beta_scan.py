@@ -121,7 +121,7 @@ if __name__ == '__main__':
 		'--Coulomb-calibration',
 		metavar = 'path',
 		help = 'Path to the base directory of a Coulomb calibration "measurement" produced by the script `create_calibration_for_Coulomb_conversion_in_beta_setup.py`.',
-		required = True,
+		required = False,
 		dest = 'coulomb_calibration',
 		type = str,
 	)

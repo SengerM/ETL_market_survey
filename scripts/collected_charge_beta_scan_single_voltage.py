@@ -7,14 +7,10 @@ import numpy as np
 from grafica.plotly_utils.utils import scatter_histogram
 from clean_beta_scan import binned_fit_langauss, hex_to_rgba
 from landaupy import landau, langauss # https://github.com/SengerM/landaupy
-<<<<<<< ours:scripts/plot_collected_charge.py
 
-from utils import resample_measured_data, clean_data
-=======
+from utils import resample_measured_data, remove_nans_grouping_by_n_trigger
 import warnings
-from utils import resample_measured_data
 import measurements
->>>>>>> theirs:scripts/collected_charge_beta_scan_single_voltage.py
 
 def script_core(directory: Path, force=False, n_bootstrap:int=0):
 	"""Calculates the collected charge in a beta scan at a single voltage
@@ -51,7 +47,7 @@ def script_core(directory: Path, force=False, n_bootstrap:int=0):
 		if Abraão.job_successfully_completed_by_script('clean_beta_scan.py'): # if beta_scan was cleaned...
 			df = pandas.read_feather(Abraão.processed_by_script_dir_path('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
-			measured_data_df = clean_data(measured_data_df)
+			measured_data_df = remove_nans_grouping_by_n_trigger(measured_data_df)
 			measured_data_df = measured_data_df.set_index('n_trigger')
 			measured_data_df['accepted'] = df['accepted']
 			measured_data_df = measured_data_df.reset_index()
