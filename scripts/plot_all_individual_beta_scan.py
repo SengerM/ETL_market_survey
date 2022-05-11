@@ -11,8 +11,8 @@ from utils import read_measurement_list
 from plot_power_supply import script_core as plot_power_supply
 from plot_everything_beta_point import script_core as plot_everything_beta_point
 from clean_beta_scan import script_core as clean_beta_scan
-from plot_time_resolution import script_core as plot_time_resolution
-from plot_collected_charge import script_core as plot_collected_charge
+from time_resolution_beta_scan_single_voltage import script_core as plot_time_resolution
+from collected_charge_beta_scan_single_voltage import script_core as plot_collected_charge
 
 def script_core(directory: Path, dut_name: str, force: bool=False):
 	Adérito = Bureaucrat(
@@ -45,7 +45,7 @@ def script_core(directory: Path, dut_name: str, force: bool=False):
 			plot_time_resolution(Adérito.measurement_base_path.parent/Path(measurement_name), n_bootstrap=33, force=force)
 
 			print("  Creating the dedicated collected charge plots")
-			plot_collected_charge(Adérito.measurement_base_path.parent/Path(measurement_name), force=force)
+			plot_collected_charge(Adérito.measurement_base_path.parent/Path(measurement_name), n_bootstrap=33, force=force)
 
 
 if __name__ == '__main__':
