@@ -8,7 +8,7 @@ from grafica.plotly_utils.utils import scatter_histogram
 from clean_beta_scan import binned_fit_langauss, hex_to_rgba
 from landaupy import landau, langauss # https://github.com/SengerM/landaupy
 
-from utils import resample_measured_data
+from utils import resample_measured_data, clean_data
 
 def script_core(directory: Path, force=False, n_bootstrap=0):
 	Abraão = Bureaucrat(
@@ -30,6 +30,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		if beta_scan_was_cleaned:
 			df = pandas.read_feather(Abraão.processed_by_script_dir_path('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
+			measured_data_df = clean_data(measured_data_df)
 			measured_data_df = measured_data_df.set_index('n_trigger')
 			measured_data_df['accepted'] = df['accepted']
 			measured_data_df = measured_data_df.reset_index()
