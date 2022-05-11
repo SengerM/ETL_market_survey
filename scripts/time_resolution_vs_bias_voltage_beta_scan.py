@@ -7,6 +7,8 @@ import warnings
 import grafica.plotly_utils.utils as plotly_utils
 
 from utils import read_measurement_list, get_voltage_from_measurement
+from time_resolution_beta_scan_single_voltage import script_core as time_resolution_beta_scan_single_voltage
+import measurements
 
 def script_core(directory: Path, force: bool=False):
 	Teutónio = Bureaucrat(
@@ -21,19 +23,14 @@ def script_core(directory: Path, force: bool=False):
 	with Teutónio.verify_no_errors_context():
 		time_resolution_data = []
 		for measurement_name in read_measurement_list(Teutónio.measurement_base_path):
-			if not (Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('plot_time_resolution/.script_successfully_applied')).is_file():
-				warnings.warn(f"Time Resolution was not successfully completed for {measurement_name}")
-				continue
-			try:
-				df = pandas.read_csv(Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('plot_time_resolution/results.csv'))
-			except FileNotFoundError:
-				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}')
-				continue
-			try:
-				bootstrap_df = pandas.read_csv(Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('plot_time_resolution/bootstrap_results.csv'))
-				this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
-			except FileNotFoundError:
-				this_measurement_error = float('NaN')
+			time_resolution_beta_scan_single_voltage(
+				directory = measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name),
+				force = False,
+				n_bootstrap = 22,
+			)
+			df = pandas.read_csv(Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('time_resolution_beta_scan_single_voltage/results.csv'))
+			bootstrap_df = pandas.read_csv(Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('time_resolution_beta_scan_single_voltage/bootstrap_results.csv'))
+			this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
 			time_resolution_data.append(
 				{
 					'sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['sigma from Gaussian fit (s)'])[0]),
