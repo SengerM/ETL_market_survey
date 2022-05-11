@@ -40,6 +40,19 @@ def script_core(beta_scans_on_PINs:list, PINs_names:list):
 				ignore_index = True,
 			)
 		
+		collected_charge_single_values_df = measured_collected_charge_df.query('`Bias voltage (V)`>=100').groupby('Device name').agg({'Collected charge (V s) x_mpv value_on_data': [np.mean, np.std]})
+		
+		thickness = 50e-6 # Hardcoded here because it is the same for all the FBK devices.
+		PIN_charge_in_theory_in_Coulomb = elementary_charge*(31*np.log(thickness/1e-6)+128)*thickness/1e-6/3.65 # https://sengerm.github.io/html-github-hosting/210721_Commissioning_of_Chubut_board/210721_Commissioning_of_Chubut_board.html
+		conversion_factor = PIN_charge_in_theory_in_Coulomb/collected_charge_single_values_df['Collected charge (V s) x_mpv value_on_data'].mean()
+		conversion_factor.to_csv(KalEl.processed_data_dir_path/Path('conversion_factor (Coulomb over Volt over second).csv'))
+		
+		for col in measured_collected_charge_df.columns:
+			if '(V s)' in col:
+				measured_collected_charge_df[col.replace('(V s)','(C)')] = measured_collected_charge_df[col]*conversion_factor['mean']
+				if 'std' in col:
+					measured_collected_charge_df[col.replace('(V s)','(C)')] = (measured_collected_charge_df[col.replace('(V s)','(C)')]**2 + conversion_factor['std']**2)**.5
+		
 		fig = plotly_utils.line(
 			title = f'Collected charge vs bias voltage with beta source<br><sup>Measurement: {KalEl.measurement_name}</sup>',
 			data_frame = measured_collected_charge_df.sort_values(by=['Bias voltage (V)']),
@@ -53,19 +66,11 @@ def script_core(beta_scans_on_PINs:list, PINs_names:list):
 			},
 			color = 'Device name',
 		)
-		
-		collected_charge_single_values_df = measured_collected_charge_df.query('`Bias voltage (V)`>=100').groupby('Device name').agg({'Collected charge (V s) x_mpv value_on_data': [np.mean, np.std]})
 		for device_name in collected_charge_single_values_df.index:
 			fig.add_hline(
 				y = collected_charge_single_values_df.loc[device_name, ('Collected charge (V s) x_mpv value_on_data','mean')],
 				annotation_text = device_name,
 			)
-		
-		thickness = 50e-6 # Hardcoded here because it is the same for all the FBK devices.
-		PIN_charge_in_theory_in_Coulomb = elementary_charge*(31*np.log(thickness/1e-6)+128)*thickness/1e-6/3.65 # https://sengerm.github.io/html-github-hosting/210721_Commissioning_of_Chubut_board/210721_Commissioning_of_Chubut_board.html
-		conversion_factor = PIN_charge_in_theory_in_Coulomb/collected_charge_single_values_df['Collected charge (V s) x_mpv value_on_data'].mean()
-		conversion_factor.to_csv(KalEl.processed_data_dir_path/Path('conversion_factor (Coulomb over Volt over second).csv'))
-		
 		fig.write_html(
 			str(KalEl.processed_data_dir_path/Path('collected charge vs bias voltage.html')),
 			include_plotlyjs = 'cdn',
