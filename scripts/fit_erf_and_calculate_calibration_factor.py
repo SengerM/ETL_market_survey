@@ -103,9 +103,9 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 		
 		if measurement_handler.measurement_type != 'TCT 1D scan fixed voltage':
 			raise ValueError(f'Measurement {repr(Iñaqui.measurement_name)} must be a "TCT 1D scan fixed voltage", but it is of type {repr(measurement_handler.measurement_type)}')
-			
-		if not Iñaqui.job_successfully_completed_by_script('parse_waveforms_from_scan.py'):
-			raise RuntimeError(f'There is no successfull run of `parse_waveforms_from_scan.py` for measurement {Iñaqui.measurement_name}, cannot proceed.')
+		
+		if not (Iñaqui.job_successfully_completed_by_script('parse_waveforms_from_scan.py') or Iñaqui.job_successfully_completed_by_script('parse_waveforms_from_scan_1D.py')):
+			raise RuntimeError(f'There is no previous successfull run of `parse_waveforms_from_scan.py` or `parse_waveforms_from_scan_1D.py` for measurement {Iñaqui.measurement_name}, cannot proceed.')	
 		
 		measurement_handler.tag_left_and_right_pads()
 		
