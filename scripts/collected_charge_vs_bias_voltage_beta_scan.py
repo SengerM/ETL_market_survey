@@ -38,16 +38,12 @@ def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False)
 		collected_charge_data = []
 		for measurement_name in read_measurement_list(Vitorino.measurement_base_path):
 			handler = measurements.MeasurementHandler(measurement_name)
-			try:
-				collected_charge_beta_scan_single_voltage(
-					handler.measurement_base_path,
-					force = False,
-					n_bootstrap = 11,
-				)
-				df = pandas.read_csv(handler.measurement_base_path/Path('collected_charge_beta_scan_single_voltage/results.csv'))
-			except FileNotFoundError as e:
-				warnings.warn(f'Cannot read data from measurement {repr(measurement_name)}, reason: {e}')
-				continue
+			collected_charge_beta_scan_single_voltage(
+				handler.measurement_base_path,
+				force = False,
+				n_bootstrap = 11,
+			)
+			df = pandas.read_csv(handler.measurement_base_path/Path('collected_charge_beta_scan_single_voltage/results.csv'))
 			for device_name in set(df['Device name']):
 				collected_charge_data.append(
 					{
@@ -121,7 +117,7 @@ if __name__ == '__main__':
 		'--Coulomb-calibration',
 		metavar = 'path',
 		help = 'Path to the base directory of a Coulomb calibration "measurement" produced by the script `create_calibration_for_Coulomb_conversion_in_beta_setup.py`.',
-		required = False,
+		required = True,
 		dest = 'coulomb_calibration',
 		type = str,
 	)
