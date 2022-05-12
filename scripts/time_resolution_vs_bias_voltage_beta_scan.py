@@ -37,7 +37,6 @@ def script_core(directory: Path, force: bool=False):
 					'sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
 					'Measurement name': measurement_name,
 					'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
-					'Fluence (neq/cm^2)/1e14': 0,
 				}
 			)
 
