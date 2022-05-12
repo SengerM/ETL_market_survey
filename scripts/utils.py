@@ -101,13 +101,14 @@ def calculate_normalized_collected_charge(df:pandas.DataFrame, window_size:float
 	"""
 	normalized_charge_df = pandas.DataFrame(index=df.index)
 	normalized_charge_df['Normalized collected charge'] = df['Collected charge (V s)'].copy()
+	middle_distance = (df['Distance (m)'].max()+df['Distance (m)'].min())/2
 	for n_pulse in sorted(set(df['n_pulse'])):
 		for pad in {'left','right'}:
-			rows_where_I_expect_no_signal_i_e_where_there_is_metal = (df['Distance (m)'] < df['Distance (m)'].median() - window_size/2 - 2*laser_sigma) | (df['Distance (m)'] > df['Distance (m)'].median() + window_size/2 + 2*laser_sigma)
+			rows_where_I_expect_no_signal_i_e_where_there_is_metal = (df['Distance (m)'] < middle_distance - window_size/2 - 2*laser_sigma) | (df['Distance (m)'] > middle_distance + window_size/2 + 2*laser_sigma)
 			if pad == 'left':
-				rows_where_I_expect_full_signal_i_e_where_there_is_silicon = (df['Distance (m)'] > df['Distance (m)'].median() - window_size/2 + 2*laser_sigma) & (df['Distance (m)'] < df['Distance (m)'].median() - inter_pixel_distance/2 - 2*laser_sigma)
+				rows_where_I_expect_full_signal_i_e_where_there_is_silicon = (df['Distance (m)'] > middle_distance - window_size/2 + 2*laser_sigma) & (df['Distance (m)'] < middle_distance - inter_pixel_distance/2 - 2*laser_sigma)
 			elif pad == 'right':
-				rows_where_I_expect_full_signal_i_e_where_there_is_silicon = (df['Distance (m)'] < df['Distance (m)'].median() + window_size/2 - 2*laser_sigma) & (df['Distance (m)'] > df['Distance (m)'].median() + inter_pixel_distance/2 + 2*laser_sigma)
+				rows_where_I_expect_full_signal_i_e_where_there_is_silicon = (df['Distance (m)'] < middle_distance + window_size/2 - 2*laser_sigma) & (df['Distance (m)'] > middle_distance + inter_pixel_distance/2 + 2*laser_sigma)
 			offset_to_subtract = normalized_charge_df.loc[rows_where_I_expect_no_signal_i_e_where_there_is_metal&(df['Pad']==pad)&(df['n_pulse']==n_pulse),'Normalized collected charge'].median()
 			normalized_charge_df.loc[(df['Pad']==pad)&(df['n_pulse']==n_pulse),'Normalized collected charge'] -= offset_to_subtract
 			scale_factor = normalized_charge_df.loc[rows_where_I_expect_full_signal_i_e_where_there_is_silicon&(df['Pad']==pad)&(df['n_pulse']==n_pulse),'Normalized collected charge'].median()
