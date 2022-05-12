@@ -221,5 +221,5 @@ if __name__ == '__main__':
 	script_core(
 		Path(args.directory), 
 		window_size = 300e-6, # From the microscope pics.
-		force = False
+		force = True
 	)
