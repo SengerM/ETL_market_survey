@@ -87,6 +87,58 @@ def collect_time_resolutions_vs_voltage(measurements_names: list):
 	
 	return data_df
 
+def collect_IPD_vs_voltage(measurements_names: list):
+	"""Collects several inter-pixel distance vs voltage curves together and 
+	returns a data frame with the data ready to plot.
+	
+	Parameters
+	----------
+	measurements_names: list of str
+		A list with the names of the measurements you want to collect.
+	
+	Returns
+	-------
+	data_df: pandas.DataFrame
+		The data frame with the data.
+	"""
+	handlers = []
+	for measurement_name in measurements_names:
+		handler = measurements.MeasurementHandler(measurement_name)
+		if handler.measurement_type != 'TCT 1D scan sweeping bias voltage':
+			raise ValueError(f'Measurement {repr(measurement_name)} is of type {repr(handler.measurement_type)}, I am expecting only "TCT 1D scan sweeping bias voltage".')
+		handlers.append(handler)
+	
+	list_of_dataframes_to_concat = []
+	for handler in handlers:
+		if not (measurements.MEASUREMENTS_DATA_PATH/Path(handler.measurement_name)/Path('calculate_inter_pixel_distance_vs_bias_voltage_for_a_collection_of_1D_scans_vs_bias_voltage/script_successfully_applied')).is_file():
+			raise RuntimeError(f'Measurement {handler.measurement_name} does not seem to contain "inter-pixel distance" data.')
+		df = pandas.read_csv(measurements.MEASUREMENTS_DATA_PATH/Path(handler.measurement_name)/Path('calculate_inter_pixel_distance_vs_bias_voltage_for_a_collection_of_1D_scans_vs_bias_voltage/inter_pixel_distance_vs_bias_voltage.csv'))
+		df['Bias voltage (V)'] = df['Bias voltage (V) median']
+		df['device_name'] = handler.measured_devices[0]
+		df['measurement_name'] = handler.measurement_name
+		df['device_ID'] = devices_info_df.loc[handler.measured_devices[0], 'ID']
+		df['device_public_alias'] = devices_info.get_device_public_alias(handler.measured_devices[0])
+		list_of_dataframes_to_concat.append(df)
+	data_df = pandas.concat(list_of_dataframes_to_concat, ignore_index = True)
+	
+	return data_df
+
+def collect_collected_charge_vs_bias_voltage(measurements_names: list):
+	"""Collects several "collected charge vs voltage" curves together and 
+	returns a data frame with the data ready to plot.
+	
+	Parameters
+	----------
+	measurements_names: list of str
+		A list with the names of the measurements you want to collect.
+	
+	Returns
+	-------
+	data_df: pandas.DataFrame
+		The data frame with the data.
+	"""
+	raise NotImplementedError()
+
 if __name__ == '__main__':
 	from grafica.plotly_utils.utils import line
 	
@@ -99,7 +151,7 @@ if __name__ == '__main__':
 		},
 	)
 	
-	if True:
+	if False:
 		IV_df = collect_IV_curves(
 			[
 				'20220429135741_MS38_IV_Curve',
@@ -117,7 +169,7 @@ if __name__ == '__main__':
 		)
 		fig.show()
 	
-	if True:
+	if False:
 		time_resolution_df = collect_time_resolutions_vs_voltage(
 			[
 				'20220504130304_BetaScan_MS38_sweeping_bias_voltage',
@@ -128,14 +180,33 @@ if __name__ == '__main__':
 				'20220324184108_BetaScan_MS06_sweeping_bias_voltage',
 				'20220329121406_BetaScan_MS04_sweeping_bias_voltage',
 				'20220331121825_BetaScan_MS07_sweeping_bias_voltage',
+				'20220510205309_BetaScan_MS29_sweeping_bias_voltage',
 			]
 		)
-		print(sorted(time_resolution_df))
 		fig = line(
 			data_frame = time_resolution_df.sort_values(by='Bias voltage (V)'),
 			x = 'Bias voltage (V)',
 			y = 'Time resolution (s)',
 			error_y = 'sigma from Gaussian fit (s) bootstrapped error estimation',
+			error_y_mode = 'band',
+			markers = 'dot',
+			**PLOTS_SETTINGS,
+		)
+		fig.show()
+	
+	if True:
+		IPD_df = collect_IPD_vs_voltage(
+			[
+				'20220404001122_MS07_sweeping_bias_voltage',
+				# ~ '20220419161422_MS07_sweeping_bias_voltage',
+				'20220506164227_MS37_sweeping_bias_voltage',
+			]
+		)
+		fig = line(
+			data_frame = IPD_df.sort_values(by='Bias voltage (V)'),
+			x = 'Bias voltage (V)',
+			y = 'Inter-pixel distance (m) calibrated',
+			error_y = 'Inter-pixel distance (m) MAD_std calibrated',
 			error_y_mode = 'band',
 			markers = 'dot',
 			**PLOTS_SETTINGS,
