@@ -9,7 +9,7 @@ import grafica
 from scipy.stats import median_abs_deviation
 from scipy.optimize import curve_fit
 
-from utils import clean_data
+from utils import remove_nans_grouping_by_n_trigger
 
 k_MAD_TO_STD = 1.4826 # https://en.wikipedia.org/wiki/Median_absolute_deviation#Relation_to_standard_deviation
 
@@ -208,7 +208,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		if John.job_successfully_completed_by_script('clean_beta_scan.py'): # If there was a cleaning done, let's take it into account...
 			df = pandas.read_feather(John.processed_by_script_dir_path('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
-			measured_data_df = clean_data(measured_data_df)
+			measured_data_df = remove_nans_grouping_by_n_trigger(measured_data_df)
 			measured_data_df = measured_data_df.set_index('n_trigger')
 			measured_data_df['accepted'] = df['accepted']
 			measured_data_df = measured_data_df.reset_index()
