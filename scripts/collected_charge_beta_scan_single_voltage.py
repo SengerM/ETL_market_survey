@@ -73,8 +73,11 @@ def script_core(directory: Path, force=False, n_bootstrap:int=0):
 				try:
 					popt, _, hist, bin_centers = binned_fit_langauss(samples_to_fit)
 				except RuntimeError as e:
-					warnings.warn(f'Cannot fit data for n_bootstrap={n_bootstrap}, reason: {e}. I will just skip it...')
-					continue
+					if n_bootstrap_iter == 0:
+						raise RuntimeError(f'Cannot fit langauss to data, reason: {repr(e)}.')
+					else:
+						warnings.warn(f'Cannot fit langauss to data for n_bootstrap={n_bootstrap}, reason: {repr(e)}. I will just skip it...')
+						continue
 				results_data.append(
 					{
 						'Variable': 'Collected charge (V s) x_mpv',
