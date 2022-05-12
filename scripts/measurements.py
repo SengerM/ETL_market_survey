@@ -210,7 +210,7 @@ class MeasurementHandler:
 				except (FileNotFoundError, ValueError):
 					pass
 				_locals_now = locals()
-				if any([has_to_be not in _locals_now for has_to_be in {'inter_pixel_distance','bootstrapped_replicas'}]) or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('calculate_inter_pixel_distance_for_single_1D_scan/.script_successfully_applied')).is_file():
+				if any([has_to_be not in _locals_now for has_to_be in {'inter_pixel_distance','bootstrapped_replicas'}]) or not ((MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file() or (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/script_successfully_applied')).is_file()):
 					raise RuntimeError(f'No information (or no reliable information) about the inter-pixel distance could be found for measurement {self.measurement_name}.')
 				self._inter_pixel_distance_summary = {
 					'Inter-pixel distance (m) value on data': inter_pixel_distance,
@@ -241,7 +241,7 @@ class MeasurementHandler:
 				except (FileNotFoundError, ValueError):
 					pass
 				_locals_now = locals()
-				if any([must_be_in_locals not in _locals_now for must_be_in_locals in {'distance_calibration_factor','offset_factor'}]) or not (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file():
+				if any([must_be_in_locals not in _locals_now for must_be_in_locals in {'distance_calibration_factor','offset_factor'}]) or not ((MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/.script_successfully_applied')).is_file() or (MEASUREMENTS_DATA_PATH/Path(self.measurement_name)/Path('fit_erf_and_calculate_calibration_factor/script_successfully_applied')).is_file()):
 					raise RuntimeError(f'No information (or no reliable information) about the distance calibration factor could be found for measurement {self.measurement_name}.')
 				self._distance_calibration = {
 					'scale factor': distance_calibration_factor,
