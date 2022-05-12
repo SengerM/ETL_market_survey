@@ -83,6 +83,9 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 		new_measurement = False,
 		variables = locals(),
 	)
+	
+	if force == False and Adérito.job_successfully_completed_by_script('this script'):
+		return
 
 	with Adérito.verify_no_errors_context():
 		data_df = pandas.DataFrame(columns = ['Bias voltage (V) median','Bias voltage (V) MAD_std','Inter-pixel distance (m)','Distance calibration factor'])
@@ -90,12 +93,12 @@ def script_core(directory: Path, window_size:float, force: bool=False):
 		for measurement_name in read_measurement_list(Adérito.measurement_base_path):
 			fit_erf_and_calculate_calibration_factor(
 				Adérito.measurement_base_path.parent/Path(measurement_name),
-				force = force,
+				force = False,
 				window_size = 300e-6, # From the microscope pictures.
 			)
 			calculate_inter_pixel_distance_for_single_1D_scan(
 				Adérito.measurement_base_path.parent/Path(measurement_name),
-				force = force,
+				force = False,
 				window_size = 300e-6, # From the microscope pictures.
 				rough_inter_pixel_distance = 100e-6,
 				number_of_bootstrap_replicas_to_estimate_uncertainty = 33,

@@ -94,15 +94,16 @@ def script_core(directory:Path, window_size:float, force:bool=False):
 		new_measurement = False,
 		variables = locals(),
 	)
-	measurement_handler = measurements.MeasurementHandler(Iñaqui.measurement_name)
-	
-	if measurement_handler.measurement_type != 'TCT 1D scan fixed voltage':
-		raise ValueError(f'Measurement {repr(Iñaqui.measurement_name)} must be a "TCT 1D scan fixed voltage", but it is of type {repr(measurement_handler.measurement_type)}')
 	
 	if force == False and Iñaqui.job_successfully_completed_by_script('this script'):
 		return
 	
 	with Iñaqui.verify_no_errors_context():
+		measurement_handler = measurements.MeasurementHandler(Iñaqui.measurement_name)
+		
+		if measurement_handler.measurement_type != 'TCT 1D scan fixed voltage':
+			raise ValueError(f'Measurement {repr(Iñaqui.measurement_name)} must be a "TCT 1D scan fixed voltage", but it is of type {repr(measurement_handler.measurement_type)}')
+			
 		if not Iñaqui.job_successfully_completed_by_script('parse_waveforms_from_scan.py'):
 			raise RuntimeError(f'There is no successfull run of `parse_waveforms_from_scan.py` for measurement {Iñaqui.measurement_name}, cannot proceed.')
 		
