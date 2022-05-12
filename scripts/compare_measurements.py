@@ -137,7 +137,36 @@ def collect_collected_charge_vs_bias_voltage(measurements_names: list):
 	data_df: pandas.DataFrame
 		The data frame with the data.
 	"""
-	raise NotImplementedError()
+	handlers = []
+	for measurement_name in measurements_names:
+		handler = measurements.MeasurementHandler(measurement_name)
+		if handler.measurement_type != 'beta voltage scan':
+			raise ValueError(f'Measurement {repr(measurement_name)} is of type {repr(handler.measurement_type)}, I am expecting only "beta voltage scan".')
+		handlers.append(handler)
+	
+	list_of_dataframes_to_concat = []
+	for handler in handlers:
+		if not (measurements.MEASUREMENTS_DATA_PATH/Path(handler.measurement_name)/Path('collected_charge_vs_bias_voltage_beta_scan/script_successfully_applied')).is_file():
+			raise RuntimeError(f'Measurement {handler.measurement_name} does not seem to contain "collected_charge_vs_bias_voltage_beta_scan.py" data.')
+		df = pandas.read_csv(measurements.MEASUREMENTS_DATA_PATH/Path(handler.measurement_name)/Path('collected_charge_vs_bias_voltage_beta_scan/collected_charge_vs_bias_voltage.csv'))
+		if len(set(df['Device name'])) != 2:
+			raise RuntimeError(f'I am reading the collected charge data from measurement {handler.measurement_name} and I was expecting only two devices (DUT and reference), but instead I have found these devices: {set(df["Device name"])}. As I dont know what to do, I am rising this error.')
+		found_DUT = False
+		for device in set(df['Device name']):
+			if device in devices_info.devices_info_df.index:
+				DUT = device
+				found_DUT = True
+		if not found_DUT:
+			raise RuntimeError(f'In data from measurement {handler.measurement_name} I cannot find which one is the DUT.')
+		df = df.query(f'`Device name`=="{DUT}"')
+		df.loc[:,'device_name'] = handler.measured_devices[0]
+		df.loc[:,'measurement_name'] = handler.measurement_name
+		df.loc[:,'device_ID'] = devices_info_df.loc[handler.measured_devices[0], 'ID']
+		df.loc[:,'device_public_alias'] = devices_info.get_device_public_alias(handler.measured_devices[0])
+		list_of_dataframes_to_concat.append(df)
+	data_df = pandas.concat(list_of_dataframes_to_concat, ignore_index = True)
+	
+	return data_df
 
 if __name__ == '__main__':
 	from grafica.plotly_utils.utils import line
@@ -150,6 +179,18 @@ if __name__ == '__main__':
 			'device_public_alias': 'Device',
 		},
 	)
+	
+	BETA_SCANS_SWEEPING_BIAS_VOLTAGE = [
+		'20220504130304_BetaScan_MS38_sweeping_bias_voltage',
+		'20220505141840_BetaScan_MS37_sweeping_bias_voltage',
+		'20220506173929_BetaScan_MS25_sweeping_bias_voltage',
+		'20220509175539_BetaScan_MS27_sweeping_bias_voltage',
+		# ~ '20220414144150_BetaScan_MS12_LGAD_sweeping_bias_voltage',
+		'20220324184108_BetaScan_MS06_sweeping_bias_voltage',
+		'20220329121406_BetaScan_MS04_sweeping_bias_voltage',
+		'20220331121825_BetaScan_MS07_sweeping_bias_voltage',
+		'20220510205309_BetaScan_MS29_sweeping_bias_voltage',
+	]
 	
 	if False:
 		IV_df = collect_IV_curves(
@@ -170,19 +211,7 @@ if __name__ == '__main__':
 		fig.show()
 	
 	if False:
-		time_resolution_df = collect_time_resolutions_vs_voltage(
-			[
-				'20220504130304_BetaScan_MS38_sweeping_bias_voltage',
-				'20220505141840_BetaScan_MS37_sweeping_bias_voltage',
-				'20220506173929_BetaScan_MS25_sweeping_bias_voltage',
-				'20220509175539_BetaScan_MS27_sweeping_bias_voltage',
-				# ~ '20220414144150_BetaScan_MS12_LGAD_sweeping_bias_voltage',
-				'20220324184108_BetaScan_MS06_sweeping_bias_voltage',
-				'20220329121406_BetaScan_MS04_sweeping_bias_voltage',
-				'20220331121825_BetaScan_MS07_sweeping_bias_voltage',
-				'20220510205309_BetaScan_MS29_sweeping_bias_voltage',
-			]
-		)
+		time_resolution_df = collect_time_resolutions_vs_voltage(BETA_SCANS_SWEEPING_BIAS_VOLTAGE)
 		fig = line(
 			data_frame = time_resolution_df.sort_values(by='Bias voltage (V)'),
 			x = 'Bias voltage (V)',
@@ -195,11 +224,24 @@ if __name__ == '__main__':
 		fig.show()
 	
 	if True:
+		collected_charge_df = collect_collected_charge_vs_bias_voltage(BETA_SCANS_SWEEPING_BIAS_VOLTAGE)
+		fig = line(
+			data_frame = collected_charge_df.sort_values(by='Bias voltage (V)'),
+			x = 'Bias voltage (V)',
+			y = 'Collected charge (C)',
+			error_y = 'Collected charge (C) std',
+			error_y_mode = 'band',
+			markers = 'dot',
+			**PLOTS_SETTINGS,
+		)
+		fig.show()
+	
+	if False:
 		IPD_df = collect_IPD_vs_voltage(
 			[
 				'20220404001122_MS07_sweeping_bias_voltage',
-				# ~ '20220419161422_MS07_sweeping_bias_voltage',
-				'20220506164227_MS37_sweeping_bias_voltage',
+				'20220419161422_MS07_sweeping_bias_voltage',
+				# ~ '20220506164227_MS37_sweeping_bias_voltage',
 			]
 		)
 		fig = line(
