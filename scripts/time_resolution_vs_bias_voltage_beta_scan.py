@@ -47,7 +47,7 @@ def script_core(directory: Path, force: bool=False):
 
 		df = time_resolution_df.sort_values(by='Bias voltage (V)')
 		fig = plotly_utils.line(
-			title = f'Collected charge vs bias voltage with beta source<br><sup>Measurement: {Teutónio.measurement_name}</sup>',
+			title = f'Time resolution vs bias voltage with beta source<br><sup>Measurement: {Teutónio.measurement_name}</sup>',
 			data_frame = df,
 			x = 'Bias voltage (V)',
 			y = 'Time resolution (s)',
