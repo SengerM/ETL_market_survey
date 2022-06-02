@@ -10,7 +10,7 @@ from utils import read_measurement_list, get_voltage_from_measurement
 from time_resolution_beta_scan_single_voltage import script_core as time_resolution_beta_scan_single_voltage
 import measurements
 
-def script_core(directory: Path, force: bool=False):
+def script_core(directory: Path, force:bool=False, force_calculation_at_each_point:bool=False):
 	Teutónio = Bureaucrat(
 		directory,
 		new_measurement = False,
@@ -25,7 +25,7 @@ def script_core(directory: Path, force: bool=False):
 		for measurement_name in read_measurement_list(Teutónio.measurement_base_path):
 			time_resolution_beta_scan_single_voltage(
 				directory = measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name),
-				force = False,
+				force = force_calculation_at_each_point,
 				n_bootstrap = 22,
 			)
 			df = pandas.read_csv(Teutónio.measurement_base_path.parent/Path(measurement_name)/Path('time_resolution_beta_scan_single_voltage/results.csv'))
@@ -74,4 +74,8 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory), force=True)
+	script_core(
+		Path(args.directory), 
+		force = True,
+		force_calculation_at_each_point = False,
+	)

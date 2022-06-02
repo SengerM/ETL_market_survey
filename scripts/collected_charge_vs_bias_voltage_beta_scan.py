@@ -10,7 +10,7 @@ from collected_charge_beta_scan_single_voltage import script_core as collected_c
 from create_calibration_for_Coulomb_conversion_in_beta_setup import read_calibration_factor
 import measurements
 
-def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False):
+def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False, force_calculation_at_each_point:bool=False):
 	"""Plot the collected charge as a function of the bias voltage
 	for a "beta scan sweeping bias voltage" measurement.
 	
@@ -40,7 +40,7 @@ def script_core(directory:Path, Coulomb_calibration:Path=None, force:bool=False)
 			handler = measurements.MeasurementHandler(measurement_name)
 			collected_charge_beta_scan_single_voltage(
 				handler.measurement_base_path,
-				force = False,
+				force = force_calculation_at_each_point,
 				n_bootstrap = 11,
 			)
 			df = pandas.read_csv(handler.measurement_base_path/Path('collected_charge_beta_scan_single_voltage/results.csv'))
@@ -126,4 +126,5 @@ if __name__ == '__main__':
 		directory = Path(args.directory),
 		Coulomb_calibration = Path(args.coulomb_calibration),
 		force = True,
+		force_calculation_at_each_point = False,
 	)
