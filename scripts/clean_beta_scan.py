@@ -205,7 +205,7 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 				include_plotlyjs = 'cdn',
 			)
 
-		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {'Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'}
+		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {'Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'} - {f'Time over {i*10}% (s)' for i in [1,3,4,5,6,7,8,9]}
 		df = measured_data_df
 		fig = px.scatter_matrix(
 			df,

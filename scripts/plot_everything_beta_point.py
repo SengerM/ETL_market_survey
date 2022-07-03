@@ -58,7 +58,9 @@ def script_core(directory: Path):
 			include_plotlyjs = 'cdn',
 		)
 	
-	columns_for_scatter_matrix_plot = interesting_columns - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]}
+	columns_for_scatter_matrix_plot = interesting_columns 
+	columns_for_scatter_matrix_plot -= {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]}
+	columns_for_scatter_matrix_plot -= {f'Time over {i*10}% (s)' for i in [1,3,4,5,6,7,8,9]}
 	columns_for_scatter_matrix_plot = columns_for_scatter_matrix_plot - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'}
 	df = measured_data_df
 	fig = px.scatter_matrix(
