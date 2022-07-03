@@ -57,6 +57,8 @@ def apply_cuts(data_df, cuts_df):
 def binned_fit_langauss(samples, bins='auto', nan='remove'):
 	if nan == 'remove':
 		samples = samples[~np.isnan(samples)]
+	if len(samples) == 0:
+		raise ValueError(f'`samples` is an empty array.')
 	hist, bin_edges = np.histogram(samples, bins, density=True)
 	bin_centers = bin_edges[:-1] + np.diff(bin_edges)/2
 	# Add an extra bin to the left:
