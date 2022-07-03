@@ -226,9 +226,15 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			device_B = int(input(f'Enter name of second device: '))
 			devices_names = set([device_A, device_B])
 			measured_data_df = measured_data_df.loc[measured_data_df['device_name'].isin(devices_names)] # Discard all other devices.
-
+		
+		k1k2_device_names_df = {'device_name': [], 'device_number': []}
 		for idx,device_name in enumerate(devices_names): # This is so I can use the same framework as in the TCT where there is only one detector but two pulses.
-			measured_data_df.loc[measured_data_df['device_name']==device_name,'n_pulse'] = idx+1
+			device_number = idx+1
+			measured_data_df.loc[measured_data_df['device_name']==device_name,'n_pulse'] = device_number
+			k1k2_device_names_df['device_name'].append(device_name)
+			k1k2_device_names_df['device_number'].append(device_number)
+		k1k2_device_names_df = pandas.DataFrame(k1k2_device_names_df)
+		k1k2_device_names_df.to_csv(John.current_script_output_directory_path/Path('device_names_and_k1k2.csv'), index=False)
 
 		final_results_data = []
 		bootstrapped_replicas_data = []
