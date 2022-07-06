@@ -26,15 +26,15 @@ def script_core(directory: Path, force: bool=False):
 			try:
 				shutil.copyfile(
 					directory/Path('cuts.csv'),
-					measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('cuts.csv')
+					directory.parent/Path(measurement_name)/Path('cuts.csv')
 				)
 			except FileNotFoundError:
 				raise FileNotFoundError(f'This script expects to find a file called `cuts.csv` in {directory} specifying the cuts to be applied.')
 			clean_beta_scan(
-				directory = measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name),
+				directory = directory.parent/Path(measurement_name),
 			)
-			measured_df = pandas.read_feather(measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('beta_scan/measured_data.fd'))
-			cleaned_df = pandas.read_feather(measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name)/Path('clean_beta_scan/clean_triggers.fd'))
+			measured_df = pandas.read_feather(directory.parent/Path(measurement_name)/Path('beta_scan/measured_data.fd'))
+			cleaned_df = pandas.read_feather(directory.parent/Path(measurement_name)/Path('clean_beta_scan/clean_triggers.fd'))
 			for df in [measured_df, cleaned_df]:
 				df.set_index('n_trigger', inplace=True)
 			measured_df['accepted'] = cleaned_df['accepted']
