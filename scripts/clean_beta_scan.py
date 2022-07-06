@@ -83,6 +83,7 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 	John = Bureaucrat(
 		directory,
 		variables = locals(),
+		clear_output_directory_when_initializing = True,
 	)
 
 	plots_dir_path = John.processed_data_dir_path/Path('plots')
@@ -111,133 +112,135 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 		except NameError:
 			measured_data_df['Accepted'] = True # Accept all triggers.
 		measured_data_df = measured_data_df.reset_index()
-
-
-		for column in measured_data_df:
-			if column in SET_OF_COLUMNS_TO_IGNORE:
-				continue
-			histogram_fig = px.histogram(
-				measured_data_df,
-				x = column,
-				facet_col = 'device_name',
-				title = f'{column}<br><sup>Measurement: {John.measurement_name}</sup>',
-				color = 'Accepted',
-				color_discrete_map = {False: 'red', True: 'green'},
-				pattern_shape_map = {False: 'x', True: ''},
-				marginal = 'rug',
-				hover_data = ['n_trigger'],
-			)
-			if 'collected charge' in column.lower(): # LANGAUSS FIT!
-				fig = go.Figure()
-				fig.update_layout(
-					title = f'Langauss fit on "accepted events"<br><sup>Measurement: {John.measurement_name}</sup>',
-					xaxis_title = column,
-					yaxis_title = 'Probability density',
-				)
-				colors = iter(px.colors.qualitative.Plotly)
-				for device_name in sorted(set(measured_data_df['device_name'])):
-					_samples = measured_data_df.query('Accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
-					popt, _, hist, bin_centers = binned_fit_langauss(_samples)
-					this_channel_color = next(colors)
-
-					fig.add_trace(
-						scatter_histogram(
-							samples = _samples,
-							error_y = dict(type='auto'),
-							density = True,
-							name = f'Data {device_name}',
-							line = dict(color = this_channel_color),
-							legendgroup = device_name,
-						)
-					)
-					x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
-					fig.add_trace(
-						go.Scatter(
-							x = x_axis,
-							y = langauss.pdf(x_axis, *popt),
-							name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
-							line = dict(color = this_channel_color, dash='dash'),
-							legendgroup = device_name,
-						)
-					)
-					fig.add_trace(
-						go.Scatter(
-							x = x_axis,
-							y = landau.pdf(x_axis, popt[0], popt[1]),
-							name = f'Landau component {device_name}',
-							line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .3)}', dash='dashdot'),
-							legendgroup = device_name,
-						)
-					)
-				fig.write_html(
-					str(John.processed_data_dir_path/Path(f'{column} langauss fit.html')),
-					include_plotlyjs = 'cdn',
-				)
-			if column in set(cuts_df['variable']) or column in {'Collected charge (V s)'}:
-				ecdf_fig = px.ecdf(
+		
+		if len(measured_data_df.query('Accepted==True')) == 0: # If all events were rejected...
+			pass
+		else:
+			for column in measured_data_df:
+				if column in SET_OF_COLUMNS_TO_IGNORE:
+					continue
+				histogram_fig = px.histogram(
 					measured_data_df,
 					x = column,
-					color = 'device_name',
+					facet_col = 'device_name',
 					title = f'{column}<br><sup>Measurement: {John.measurement_name}</sup>',
-					marginal = 'histogram',
-					facet_row = 'Accepted',
+					color = 'Accepted',
+					color_discrete_map = {False: 'red', True: 'green'},
+					pattern_shape_map = {False: 'x', True: ''},
+					marginal = 'rug',
 					hover_data = ['n_trigger'],
 				)
-				cuts_to_draw_df = cuts_df.loc[cuts_df['variable']==column]
-				if len(cuts_to_draw_df) > 0:
-					for device_name in sorted(set(cuts_to_draw_df['device_name'])):
-						for cut_type in sorted(set(cuts_to_draw_df.loc[cuts_to_draw_df['device_name']==device_name,'cut type'])):
-							for fig in [histogram_fig, ecdf_fig]:
-								fig.add_vline(
-									x = float(cuts_df.loc[(cuts_df['device_name']==device_name)&(cuts_df['cut type']==cut_type)&(cuts_df['variable']==column), 'cut value']),
-									opacity = .5,
-									annotation_text = f'{device_name} {cut_type} cut️',
-									line_color = 'black',
-									line_dash = 'dash',
-									annotation_textangle = -90,
-									annotation_position = 'bottom left',
-								)
-				ecdf_fig.write_html(
-					str(plots_dir_path/Path(f'{column} ECDF.html')),
+				if 'collected charge' in column.lower(): # LANGAUSS FIT!
+					fig = go.Figure()
+					fig.update_layout(
+						title = f'Langauss fit on "accepted events"<br><sup>Measurement: {John.measurement_name}</sup>',
+						xaxis_title = column,
+						yaxis_title = 'Probability density',
+					)
+					colors = iter(px.colors.qualitative.Plotly)
+					for device_name in sorted(set(measured_data_df['device_name'])):
+						_samples = measured_data_df.query('Accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
+						popt, _, hist, bin_centers = binned_fit_langauss(_samples)
+						this_channel_color = next(colors)
+
+						fig.add_trace(
+							scatter_histogram(
+								samples = _samples,
+								error_y = dict(type='auto'),
+								density = True,
+								name = f'Data {device_name}',
+								line = dict(color = this_channel_color),
+								legendgroup = device_name,
+							)
+						)
+						x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
+						fig.add_trace(
+							go.Scatter(
+								x = x_axis,
+								y = langauss.pdf(x_axis, *popt),
+								name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
+								line = dict(color = this_channel_color, dash='dash'),
+								legendgroup = device_name,
+							)
+						)
+						fig.add_trace(
+							go.Scatter(
+								x = x_axis,
+								y = landau.pdf(x_axis, popt[0], popt[1]),
+								name = f'Landau component {device_name}',
+								line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .3)}', dash='dashdot'),
+								legendgroup = device_name,
+							)
+						)
+					fig.write_html(
+						str(John.processed_data_dir_path/Path(f'{column} langauss fit.html')),
+						include_plotlyjs = 'cdn',
+					)
+				if column in set(cuts_df['variable']) or column in {'Collected charge (V s)'}:
+					ecdf_fig = px.ecdf(
+						measured_data_df,
+						x = column,
+						color = 'device_name',
+						title = f'{column}<br><sup>Measurement: {John.measurement_name}</sup>',
+						marginal = 'histogram',
+						facet_row = 'Accepted',
+						hover_data = ['n_trigger'],
+					)
+					cuts_to_draw_df = cuts_df.loc[cuts_df['variable']==column]
+					if len(cuts_to_draw_df) > 0:
+						for device_name in sorted(set(cuts_to_draw_df['device_name'])):
+							for cut_type in sorted(set(cuts_to_draw_df.loc[cuts_to_draw_df['device_name']==device_name,'cut type'])):
+								for fig in [histogram_fig, ecdf_fig]:
+									fig.add_vline(
+										x = float(cuts_df.loc[(cuts_df['device_name']==device_name)&(cuts_df['cut type']==cut_type)&(cuts_df['variable']==column), 'cut value']),
+										opacity = .5,
+										annotation_text = f'{device_name} {cut_type} cut️',
+										line_color = 'black',
+										line_dash = 'dash',
+										annotation_textangle = -90,
+										annotation_position = 'bottom left',
+									)
+					ecdf_fig.write_html(
+						str(plots_dir_path/Path(f'{column} ECDF.html')),
+						include_plotlyjs = 'cdn',
+					)
+
+				histogram_fig.write_html(
+					str(plots_dir_path/Path(f'{column} histogram.html')),
 					include_plotlyjs = 'cdn',
 				)
 
-			histogram_fig.write_html(
-				str(plots_dir_path/Path(f'{column} histogram.html')),
+			columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'} - {f'Time over {i*10}% (s)' for i in [1,3,4,5,6,7,8,9]}
+			df = measured_data_df
+			fig = px.scatter_matrix(
+				df,
+				dimensions = sorted(columns_for_scatter_matrix_plot),
+				title = f'Scatter matrix plot<br><sup>Measurement: {John.measurement_name}</sup>',
+				symbol = 'device_name',
+				color = 'Accepted',
+				color_discrete_map = {False: 'red', True: 'green'},
+				symbol_map = {True: 'circle', False: 'x'},
+				hover_data = ['n_trigger'],
+			)
+			fig.update_traces(diagonal_visible=False, showupperhalf=False)
+			for k in range(len(fig.data)):
+				fig.data[k].update(
+					selected = dict(
+						marker = dict(
+							opacity = 1,
+							color = 'black',
+						)
+					),
+					# ~ unselected = dict(
+						# ~ marker = dict(
+							# ~ opacity = 0.01
+						# ~ )
+					# ~ ),
+				)
+			fig.write_html(
+				str(John.processed_data_dir_path/Path('scatter_matrix.html')),
 				include_plotlyjs = 'cdn',
 			)
-
-		columns_for_scatter_matrix_plot = set(measured_data_df.columns) - SET_OF_COLUMNS_TO_IGNORE - {'Time over 20% (s)'} - {f't_{i*10} (s)' for i in [1,2,3,4,6,7,8,9]} - {'Humidity (%RH)','Temperature (°C)','Bias voltage (V)','Bias current (A)'} - {f'Time over {i*10}% (s)' for i in [1,3,4,5,6,7,8,9]}
-		df = measured_data_df
-		fig = px.scatter_matrix(
-			df,
-			dimensions = sorted(columns_for_scatter_matrix_plot),
-			title = f'Scatter matrix plot<br><sup>Measurement: {John.measurement_name}</sup>',
-			symbol = 'device_name',
-			color = 'Accepted',
-			color_discrete_map = {False: 'red', True: 'green'},
-			symbol_map = {True: 'circle', False: 'x'},
-			hover_data = ['n_trigger'],
-		)
-		fig.update_traces(diagonal_visible=False, showupperhalf=False)
-		for k in range(len(fig.data)):
-			fig.data[k].update(
-				selected = dict(
-					marker = dict(
-						opacity = 1,
-						color = 'black',
-					)
-				),
-				# ~ unselected = dict(
-					# ~ marker = dict(
-						# ~ opacity = 0.01
-					# ~ )
-				# ~ ),
-			)
-		fig.write_html(
-			str(John.processed_data_dir_path/Path('scatter_matrix.html')),
-			include_plotlyjs = 'cdn',
-		)
 
 	# Plot waveforms ---
 	if plot_waveforms == True:
