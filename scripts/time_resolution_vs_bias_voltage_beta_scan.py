@@ -73,9 +73,15 @@ if __name__ == '__main__':
 		dest = 'directory',
 		type = str,
 	)
+	parser.add_argument(
+		'--force-calculation-at-each-point',
+		help = 'If passed, the time resolution at each point will be recalculated independently of whether it was already calculated or not before.',
+		action = 'store_true',
+		dest = 'force_calculation_at_each_point',
+	)
 	args = parser.parse_args()
 	script_core(
 		Path(args.directory), 
 		force = True,
-		force_calculation_at_each_point = False,
+		force_calculation_at_each_point = args.force_calculation_at_each_point,
 	)
