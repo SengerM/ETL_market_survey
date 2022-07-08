@@ -4,12 +4,11 @@ from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-from grafica.plotly_utils.utils import scatter_histogram
-import grafica
+import grafica.plotly_utils.utils as plotly_utils
 from scipy.stats import median_abs_deviation
 from scipy.optimize import curve_fit
 
-from utils import remove_nans_grouping_by_n_trigger
+from utils import remove_nans_grouping_by_n_trigger, get_voltage_from_measurement
 
 k_MAD_TO_STD = 1.4826 # https://en.wikipedia.org/wiki/Median_absolute_deviation#Relation_to_standard_deviation
 N_BOOTSTRAP = 33
@@ -201,6 +200,55 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 		return
 
 	with John.do_your_magic():
+		if John.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'): # This means that we are dealing with a voltage scan that should contain submeasurements at each voltage.
+			John.check_required_scripts_were_run_before('beta_scan_sweeping_bias_voltage.py')
+			
+			submeasurements_dict = John.find_submeasurements('beta_scan_sweeping_bias_voltage.py')
+			if submeasurements_dict is None:
+				raise RuntimeError(f'I was expecting to find submeasurements in {John.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
+			
+			time_resolution_data = []
+			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
+				script_core(path_to_submeasurement, force=force_submeasurements) # Recursive call...
+				Teutónio = SmarterBureaucrat(
+					path_to_submeasurement,
+					_locals = locals(),
+				)
+				df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('results.csv'))
+				bootstrap_df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('bootstrap_results.csv'))
+				this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
+				time_resolution_data.append(
+					{
+						'sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['sigma from Gaussian fit (s)'])[0]),
+						'sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
+						'Measurement name': measurement_name,
+						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
+					}
+				)
+
+			time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
+
+			time_resolution_df['Jitter (s)'] = time_resolution_df['sigma from Gaussian fit (s)']/2**.5
+
+			df = time_resolution_df.sort_values(by='Bias voltage (V)')
+			fig = plotly_utils.line(
+				title = f'Jitter vs bias voltage with beta source<br><sup>Measurement: {John.measurement_name}</sup>',
+				data_frame = df,
+				x = 'Bias voltage (V)',
+				y = 'Jitter (s)',
+				error_y = 'sigma from Gaussian fit (s) bootstrapped error estimation',
+				hover_data = sorted(df),
+				markers = 'circle',
+			)
+			fig.write_html(
+				str(John.path_to_default_output_directory/Path('time resolution vs bias voltage.html')),
+				include_plotlyjs = 'cdn',
+			)
+			time_resolution_df.to_csv(John.path_to_default_output_directory/Path('time_resolution_vs_bias_voltage.csv'))
+			
+			return
+		
+		# Default case when the script is called on a single voltage beta scan ---
 		try:
 			measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
 		except FileNotFoundError:
@@ -294,7 +342,7 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 			)
 			samples_for_plot = np.array(list(Delta_t_df.loc[(Delta_t_df['k_1 (%)']==best_k1k2[0])&(Delta_t_df['k_2 (%)']==best_k1k2[1]),'Δt (s)']))
 			fig.add_trace(
-				scatter_histogram(
+				plotly_utils.scatter_histogram(
 					samples = samples_for_plot,
 					name = f'Measured data',
 					error_y = dict(type='auto'),
@@ -373,4 +421,4 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory), force=False)
+	script_core(Path(args.directory), force=True)
