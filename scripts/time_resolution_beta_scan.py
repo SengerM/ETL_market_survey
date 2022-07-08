@@ -395,7 +395,7 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 		)
 		for stuff in {'k MAD(Δt)','sigma from Gaussian fit','std'}:
 			fig.add_trace(
-				scatter_histogram(
+				plotly_utils.scatter_histogram(
 					samples = bootstrapped_replicas_df[f'{stuff} (s)'],
 					name = stuff,
 					error_y = dict(type='auto'),
@@ -421,4 +421,8 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory), force=True)
+	script_core(
+		Path(args.directory), 
+		force = True,
+		force_submeasurements = True,
+	)
