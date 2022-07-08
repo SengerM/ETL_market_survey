@@ -255,9 +255,9 @@ def process_single_voltage_measurement(directory:Path, force:bool=False):
 
 			bootstrapped_replicas_data.append(
 				{
-					'k MAD(Δt) (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
-					'std (s)': std,
-					'sigma from Gaussian fit (s)': fitted_sigma,
+					'Δt k_MAD (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
+					'Δt std (s)': std,
+					'Δt sigma from Gaussian fit (s)': fitted_sigma,
 					'k_1 (%)': best_k1k2[0],
 					'k_2 (%)': best_k1k2[1],
 				}
@@ -268,9 +268,9 @@ def process_single_voltage_measurement(directory:Path, force:bool=False):
 			# If we are here it is because we are not in a bootstrap iteration, it is the first iteration that is with the actual data.
 			final_results_data.append(
 				{
-					'k MAD(Δt) (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
-					'std (s)': std,
-					'sigma from Gaussian fit (s)': fitted_sigma,
+					'Δt k_MAD (s)': Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
+					'Δt std (s)': std,
+					'Δt sigma from Gaussian fit (s)': fitted_sigma,
 					'k_1 (%)': best_k1k2[0],
 					'k_2 (%)': best_k1k2[1],
 					'type': 'estimator value on the data',
@@ -305,12 +305,6 @@ def process_single_voltage_measurement(directory:Path, force:bool=False):
 					name = f'Fitted Gaussian (σ={fitted_sigma*1e12:.2f} ps)',
 				)
 			)
-			# ~ draw_median_and_MAD_vertical_lines(
-				# ~ plotlyfig = fig.plotly_figure,
-				# ~ center = np.median(list(Delta_t_df.loc[(Delta_t_df['k_1 (%)']==best_k1k2[0])&(Delta_t_df['k_2 (%)']==best_k1k2[1]),'Δt (s)'])),
-				# ~ amplitude = Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)'],
-				# ~ text = f"k MAD(Δt) = {Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)']*1e12:.2f} ps",
-			# ~ )
 			fig.write_html(
 				str(Norberto.path_to_default_output_directory/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')),
 				include_plotlyjs = 'cdn',
@@ -338,11 +332,11 @@ def process_single_voltage_measurement(directory:Path, force:bool=False):
 
 		fig = go.Figure()
 		fig.update_layout(
-			title = f'Bootstrap replicas of k MAD(Δt)<br><sup>Measurement: {Norberto.measurement_name}</sup>',
+			title = f'Bootstrap replicas of Δt k_MAD<br><sup>Measurement: {Norberto.measurement_name}</sup>',
 			xaxis_title = 'Estimation of σ (s)',
 			yaxis_title = 'Number of events',
 		)
-		for stuff in {'k MAD(Δt)','sigma from Gaussian fit','std'}:
+		for stuff in {'Δt k_MAD','Δt sigma from Gaussian fit','Δt std'}:
 			fig.add_trace(
 				plotly_utils.scatter_histogram(
 					samples = bootstrapped_replicas_df[f'{stuff} (s)'],
@@ -382,11 +376,11 @@ def process_measurement_sweeping_voltage(directory:Path, force:bool=False, force
 				)
 				df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('results.csv'))
 				bootstrap_df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('bootstrap_results.csv'))
-				this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
+				this_measurement_error = bootstrap_df['Δt sigma from Gaussian fit (s)'].std()
 				time_resolution_data.append(
 					{
-						'sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['sigma from Gaussian fit (s)'])[0]),
-						'sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
+						'Δt sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['Δt sigma from Gaussian fit (s)'])[0]),
+						'Δt sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
 						'Measurement name': measurement_name,
 						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
 					}
@@ -394,20 +388,21 @@ def process_measurement_sweeping_voltage(directory:Path, force:bool=False, force
 
 			time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
 
-			time_resolution_df['Jitter (s)'] = time_resolution_df['sigma from Gaussian fit (s)']/2**.5
-
 			df = time_resolution_df.sort_values(by='Bias voltage (V)')
 			fig = plotly_utils.line(
-				title = f'Jitter vs bias voltage with beta source<br><sup>Measurement: {Mariano.measurement_name}</sup>',
+				title = f'Measured jitter vs bias voltage with beta source<br><sup>Measurement: {Mariano.measurement_name}</sup>',
 				data_frame = df,
 				x = 'Bias voltage (V)',
-				y = 'Jitter (s)',
-				error_y = 'sigma from Gaussian fit (s) bootstrapped error estimation',
-				hover_data = sorted(df),
+				y = 'Δt sigma from Gaussian fit (s)',
+				error_y = 'Δt sigma from Gaussian fit (s) bootstrapped error estimation',
+				hover_data = ['Measurement name'],
 				markers = 'circle',
+				labels = {
+					'Δt sigma from Gaussian fit (s)': '√(σ<sub>1</sub>²+σ<sub>2</sub>²) (s)',
+				}
 			)
 			fig.write_html(
-				str(Mariano.path_to_default_output_directory/Path('time resolution vs bias voltage.html')),
+				str(Mariano.path_to_default_output_directory/Path('jitter vs bias voltage.html')),
 				include_plotlyjs = 'cdn',
 			)
 			time_resolution_df.to_csv(Mariano.path_to_default_output_directory/Path('time_resolution_vs_bias_voltage.csv'))
