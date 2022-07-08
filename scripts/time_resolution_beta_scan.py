@@ -12,6 +12,7 @@ from scipy.optimize import curve_fit
 from utils import remove_nans_grouping_by_n_trigger
 
 k_MAD_TO_STD = 1.4826 # https://en.wikipedia.org/wiki/Median_absolute_deviation#Relation_to_standard_deviation
+N_BOOTSTRAP = 33
 
 def gaussian(x, mu, sigma, amplitude=1):
 	return amplitude/sigma/(2*np.pi)**.5*np.exp(-((x-mu)/sigma)**2/2)
@@ -190,13 +191,13 @@ def fit_gaussian_to_samples(samples, bins='auto'):
 	except RuntimeError: # This happens when the fit fails because there are very few samples.
 		return float('NaN'),float('NaN'),float('NaN')
 
-def script_core(directory: Path, force=False, n_bootstrap=0):
+def script_core(directory:Path, force:bool=False, force_submeasurements:bool=False):
 	John = SmarterBureaucrat(
 		directory,
 		_locals = locals(),
 	)
 
-	if force == False and John.check_required_scripts_were_run_before('this script'): # If this was already done, don't do it again...
+	if force == False and John.script_was_applied_without_errors(): # If this was already done, don't do it again...
 		return
 
 	with John.do_your_magic():
@@ -238,7 +239,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 
 		final_results_data = []
 		bootstrapped_replicas_data = []
-		for k_bootstrap in range(n_bootstrap+1):
+		for k_bootstrap in range(N_BOOTSTRAP+1):
 
 			bootstrapped_iteration = False
 			if k_bootstrap > 0:
@@ -372,4 +373,4 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory), force=True, n_bootstrap=33)
+	script_core(Path(args.directory), force=False)
