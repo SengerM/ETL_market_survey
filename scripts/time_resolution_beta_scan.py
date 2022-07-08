@@ -7,6 +7,7 @@ import numpy as np
 import grafica.plotly_utils.utils as plotly_utils
 from scipy.stats import median_abs_deviation
 from scipy.optimize import curve_fit
+import shutil
 
 from utils import remove_nans_grouping_by_n_trigger, get_voltage_from_measurement
 
@@ -190,72 +191,26 @@ def fit_gaussian_to_samples(samples, bins='auto'):
 	except RuntimeError: # This happens when the fit fails because there are very few samples.
 		return float('NaN'),float('NaN'),float('NaN')
 
-def script_core(directory:Path, force:bool=False, force_submeasurements:bool=False):
-	John = SmarterBureaucrat(
-		directory,
-		_locals = locals(),
-	)
-
-	if force == False and John.script_was_applied_without_errors(): # If this was already done, don't do it again...
+def process_single_voltage_measurement(directory:Path, force:bool=False):
+	Norberto = SmarterBureaucrat(directory,	_locals = locals())
+	
+	Norberto.check_required_scripts_were_run_before('beta_scan.py')
+	
+	if force == False and Norberto.script_was_applied_without_errors(): # If this was already done, don't do it again...
 		return
-
-	with John.do_your_magic():
-		if John.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'): # This means that we are dealing with a voltage scan that should contain submeasurements at each voltage.
-			John.check_required_scripts_were_run_before('beta_scan_sweeping_bias_voltage.py')
-			
-			submeasurements_dict = John.find_submeasurements('beta_scan_sweeping_bias_voltage.py')
-			if submeasurements_dict is None:
-				raise RuntimeError(f'I was expecting to find submeasurements in {John.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
-			
-			time_resolution_data = []
-			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
-				script_core(path_to_submeasurement, force=force_submeasurements) # Recursive call...
-				Teutónio = SmarterBureaucrat(
-					path_to_submeasurement,
-					_locals = locals(),
-				)
-				df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('results.csv'))
-				bootstrap_df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('bootstrap_results.csv'))
-				this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
-				time_resolution_data.append(
-					{
-						'sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['sigma from Gaussian fit (s)'])[0]),
-						'sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
-						'Measurement name': measurement_name,
-						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
-					}
-				)
-
-			time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
-
-			time_resolution_df['Jitter (s)'] = time_resolution_df['sigma from Gaussian fit (s)']/2**.5
-
-			df = time_resolution_df.sort_values(by='Bias voltage (V)')
-			fig = plotly_utils.line(
-				title = f'Jitter vs bias voltage with beta source<br><sup>Measurement: {John.measurement_name}</sup>',
-				data_frame = df,
-				x = 'Bias voltage (V)',
-				y = 'Jitter (s)',
-				error_y = 'sigma from Gaussian fit (s) bootstrapped error estimation',
-				hover_data = sorted(df),
-				markers = 'circle',
-			)
-			fig.write_html(
-				str(John.path_to_default_output_directory/Path('time resolution vs bias voltage.html')),
-				include_plotlyjs = 'cdn',
-			)
-			time_resolution_df.to_csv(John.path_to_default_output_directory/Path('time_resolution_vs_bias_voltage.csv'))
-			
-			return
-		
-		# Default case when the script is called on a single voltage beta scan ---
+	
+	with Norberto.do_your_magic():
 		try:
-			measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
+			measured_data_df = pandas.read_feather(Norberto.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
 		except FileNotFoundError:
-			measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
+			measured_data_df = pandas.read_csv(Norberto.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
 
-		if John.check_required_scripts_were_run_before('clean_beta_scan.py', raise_error=False): # If there was a cleaning done, let's take it into account...
-			df = pandas.read_feather(John.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('clean_triggers.fd'))
+		if Norberto.check_required_scripts_were_run_before('clean_beta_scan.py', raise_error=False): # If there was a cleaning done, let's take it into account...
+			shutil.copyfile( # Put a copy of the cuts in the output directory so there is a record of what was done.
+				Norberto.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('cuts.csv'),
+				Norberto.path_to_default_output_directory/Path('cuts.csv')
+			)
+			df = pandas.read_feather(Norberto.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
 			measured_data_df = remove_nans_grouping_by_n_trigger(measured_data_df)
 			measured_data_df = measured_data_df.set_index('n_trigger')
@@ -265,16 +220,10 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 			measured_data_df['accepted'] = True
 		measured_data_df = measured_data_df.query('accepted==True').copy() # From now on we drop all useless data.
 		
-		if len(set(measured_data_df['device_name'])) < 2:
-			raise RuntimeError(f'A time resolution calculation requires at least two devices, but this beta scan has {len(set(measured_data_df["device_name"]))} device/s.')
 		if len(set(measured_data_df['device_name'])) == 2:
 			devices_names = list(set(measured_data_df['device_name']))
-		else: # Time resolution is calculated between two devices, tell me which to use!
-			print(f'This measurement contains more than two devices, namely: {set(measured_data_df["device_name"])}. Which ones do you want to use to calculate the time resolution?')
-			device_A = int(input(f'Enter name of first device: '))
-			device_B = int(input(f'Enter name of second device: '))
-			devices_names = set([device_A, device_B])
-			measured_data_df = measured_data_df.loc[measured_data_df['device_name'].isin(devices_names)] # Discard all other devices.
+		else:
+			raise RuntimeError(f'A time resolution calculation requires two devices, but this beta scan has {len(set(measured_data_df["device_name"]))} device/s. Dont know how to handle this, sorry dude...')
 		
 		k1k2_device_names_df = {'device_name': [], 'device_number': []}
 		for idx,device_name in enumerate(devices_names): # This is so I can use the same framework as in the TCT where there is only one detector but two pulses.
@@ -283,7 +232,7 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 			k1k2_device_names_df['device_name'].append(device_name)
 			k1k2_device_names_df['device_number'].append(device_number)
 		k1k2_device_names_df = pandas.DataFrame(k1k2_device_names_df)
-		k1k2_device_names_df.to_csv(John.path_to_default_output_directory/Path('device_names_and_k1k2.csv'), index=False)
+		k1k2_device_names_df.to_csv(Norberto.path_to_default_output_directory/Path('device_names_and_k1k2.csv'), index=False)
 
 		final_results_data = []
 		bootstrapped_replicas_data = []
@@ -330,15 +279,15 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 
 			fig = plot_cfd(Delta_t_fluctuations_df)
 			fig.update_layout(
-				title = f'Time resolution vs CFD thresholds<br><sup>Measurement: {John.measurement_name}</sup>'
+				title = f'Time resolution vs CFD thresholds<br><sup>Measurement: {Norberto.measurement_name}</sup>'
 			)
-			fig.write_html(str(John.path_to_default_output_directory/Path(f'CFD_plot.html')), include_plotlyjs = 'cdn')
+			fig.write_html(str(Norberto.path_to_default_output_directory/Path(f'CFD_plot.html')), include_plotlyjs = 'cdn')
 
 			fig = go.Figure()
 			fig.update_layout(
 				yaxis_title = 'Number of events',
 				xaxis_title = 'Δt (s)',
-				title = f'Δt for k1={best_k1k2[0]}, k2={best_k1k2[1]}<br><sup>Measurement: {John.measurement_name}</sup>'
+				title = f'Δt for k1={best_k1k2[0]}, k2={best_k1k2[1]}<br><sup>Measurement: {Norberto.measurement_name}</sup>'
 			)
 			samples_for_plot = np.array(list(Delta_t_df.loc[(Delta_t_df['k_1 (%)']==best_k1k2[0])&(Delta_t_df['k_2 (%)']==best_k1k2[1]),'Δt (s)']))
 			fig.add_trace(
@@ -363,7 +312,7 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 				# ~ text = f"k MAD(Δt) = {Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)']*1e12:.2f} ps",
 			# ~ )
 			fig.write_html(
-				str(John.path_to_default_output_directory/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')),
+				str(Norberto.path_to_default_output_directory/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')),
 				include_plotlyjs = 'cdn',
 			)
 
@@ -371,7 +320,7 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 
 		bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']] = bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']].astype(int)
 
-		bootstrapped_replicas_df_file_path = John.path_to_default_output_directory/Path('bootstrap_results.csv')
+		bootstrapped_replicas_df_file_path = Norberto.path_to_default_output_directory/Path('bootstrap_results.csv')
 		if bootstrapped_replicas_df_file_path.is_file():
 			bootstrapped_replicas_df = pandas.concat(
 				[
@@ -389,7 +338,7 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 
 		fig = go.Figure()
 		fig.update_layout(
-			title = f'Bootstrap replicas of k MAD(Δt)<br><sup>Measurement: {John.measurement_name}</sup>',
+			title = f'Bootstrap replicas of k MAD(Δt)<br><sup>Measurement: {Norberto.measurement_name}</sup>',
 			xaxis_title = 'Estimation of σ (s)',
 			yaxis_title = 'Number of events',
 		)
@@ -402,11 +351,81 @@ def script_core(directory:Path, force:bool=False, force_submeasurements:bool=Fal
 				)
 			)
 		fig.write_html(
-			str(John.path_to_default_output_directory/Path(f'histogram bootstrap.html')),
+			str(Norberto.path_to_default_output_directory/Path(f'histogram bootstrap.html')),
 			include_plotlyjs = 'cdn',
 		)
 
-		final_results_df.to_csv(John.path_to_default_output_directory/Path('results.csv'), index=False)
+		final_results_df.to_csv(Norberto.path_to_default_output_directory/Path('results.csv'), index=False)
+
+def process_measurement_sweeping_voltage(directory:Path, force:bool=False, force_submeasurements:bool=False):
+	Mariano = SmarterBureaucrat(directory, _locals=locals())
+	
+	Mariano.check_required_scripts_were_run_before('beta_scan_sweeping_bias_voltage.py')
+	
+	if force == False and Mariano.script_was_applied_without_errors(): # If this was already done, don't do it again...
+		return
+	
+	with Mariano.do_your_magic():
+		if Mariano.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'): # This means that we are dealing with a voltage scan that should contain submeasurements at each voltage.
+			Mariano.check_required_scripts_were_run_before('beta_scan_sweeping_bias_voltage.py')
+			
+			submeasurements_dict = Mariano.find_submeasurements('beta_scan_sweeping_bias_voltage.py')
+			if submeasurements_dict is None:
+				raise RuntimeError(f'I was expecting to find submeasurements in {Mariano.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
+			
+			time_resolution_data = []
+			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
+				process_single_voltage_measurement(path_to_submeasurement, force=force_submeasurements) # Recursive call...
+				Teutónio = SmarterBureaucrat(
+					path_to_submeasurement,
+					_locals = locals(),
+				)
+				df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('results.csv'))
+				bootstrap_df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('bootstrap_results.csv'))
+				this_measurement_error = bootstrap_df['sigma from Gaussian fit (s)'].std()
+				time_resolution_data.append(
+					{
+						'sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['sigma from Gaussian fit (s)'])[0]),
+						'sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
+						'Measurement name': measurement_name,
+						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
+					}
+				)
+
+			time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
+
+			time_resolution_df['Jitter (s)'] = time_resolution_df['sigma from Gaussian fit (s)']/2**.5
+
+			df = time_resolution_df.sort_values(by='Bias voltage (V)')
+			fig = plotly_utils.line(
+				title = f'Jitter vs bias voltage with beta source<br><sup>Measurement: {Mariano.measurement_name}</sup>',
+				data_frame = df,
+				x = 'Bias voltage (V)',
+				y = 'Jitter (s)',
+				error_y = 'sigma from Gaussian fit (s) bootstrapped error estimation',
+				hover_data = sorted(df),
+				markers = 'circle',
+			)
+			fig.write_html(
+				str(Mariano.path_to_default_output_directory/Path('time resolution vs bias voltage.html')),
+				include_plotlyjs = 'cdn',
+			)
+			time_resolution_df.to_csv(Mariano.path_to_default_output_directory/Path('time_resolution_vs_bias_voltage.csv'))
+			
+			return
+
+def script_core(directory:Path, force:bool=False, force_submeasurements:bool=False):
+	John = SmarterBureaucrat(
+		directory,
+		_locals = locals(),
+	)
+	
+	if John.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'):
+		process_measurement_sweeping_voltage(directory, force, force_submeasurements)
+	elif John.script_was_applied_without_errors('beta_scan.py'):
+		process_single_voltage_measurement(directory, force)
+	else:
+		raise RuntimeError(f'Dont know how to process {directory}...')
 
 if __name__ == '__main__':
 	import argparse
@@ -424,5 +443,5 @@ if __name__ == '__main__':
 	script_core(
 		Path(args.directory), 
 		force = True,
-		force_submeasurements = True,
+		force_submeasurements = False,
 	)
