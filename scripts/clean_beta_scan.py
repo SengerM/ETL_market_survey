@@ -13,6 +13,7 @@ from scipy.stats import median_abs_deviation
 from scipy.optimize import curve_fit
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
 from plotly.subplots import make_subplots
+import shutil
 
 SET_OF_COLUMNS_TO_IGNORE = {'n_waveform','n_trigger','When','device_name','Accepted'}
 
@@ -79,22 +80,38 @@ def binned_fit_langauss(samples, bins='auto', nan='remove'):
 	)
 	return popt, pcov, hist, bin_centers
 
-def script_core(directory: Path, plot_waveforms:bool=False):
+def script_core(directory:Path, plot_waveforms:bool=False, clean_submeasurements:bool=False):
 	John = SmarterBureaucrat(
 		directory,
 		_locals = locals(),
 	)
 	
-	John.check_required_scripts_were_run_before('beta_scan.py')
-	
-	cuts_file_path = John.path_to_measurement_base_directory/Path('cuts.csv')
-
-	try:
-		measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
-	except FileNotFoundError:
-		measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
-
 	with John.do_your_magic():
+		# Case for when this script is called to process a beta scan sweeping the bias voltage which contains submeasurements ---
+		if clean_submeasurements:
+			John.check_required_scripts_were_run_before('beta_scan_sweeping_bias_voltage.py')
+			
+			submeasurements_dict = John.find_submeasurements('beta_scan_sweeping_bias_voltage.py')
+			if submeasurements_dict is None:
+				raise RuntimeError(f'I was expecting to find submeasurements in {John.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
+			
+			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
+				shutil.copyfile(
+					John.path_to_measurement_base_directory/Path('cuts.csv'),
+					path_to_submeasurement/Path('cuts.csv')
+				)
+				script_core(path_to_submeasurement, plot_waveforms, clean_submeasurements=False) # Recursive call to this function.
+			return
+		
+		# Default case when the script is called on a single voltage beta scan ---
+		John.check_required_scripts_were_run_before('beta_scan.py')
+	
+		cuts_file_path = John.path_to_measurement_base_directory/Path('cuts.csv')
+
+		try:
+			measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
+		except FileNotFoundError:
+			measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
 		try:
 			cuts_df = pandas.read_csv(cuts_file_path)
 		except FileNotFoundError:
@@ -350,6 +367,12 @@ if __name__ == '__main__':
 		action = 'store_true',
 		dest = 'plot_waveforms',
 	)
+	parser.add_argument(
+		'--clean-submeasurements',
+		help = 'If you are going to run this script on a "beta_scan_sweeping_bias_voltage" measurement, you have to specify this flag.',
+		action = 'store_true',
+		dest = 'clean_submeasurements',
+	)
 
 	args = parser.parse_args()
-	script_core(Path(args.directory), plot_waveforms = args.plot_waveforms)
+	script_core(Path(args.directory), plot_waveforms=args.plot_waveforms, clean_submeasurements=args.clean_submeasurements)
