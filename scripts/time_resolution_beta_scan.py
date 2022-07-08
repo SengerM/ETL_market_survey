@@ -1,5 +1,5 @@
 import pandas
-from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
+from bureaucrat.SmarterBureaucrat import SmarterBureaucrat # https://github.com/SengerM/bureaucrat
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
@@ -191,22 +191,22 @@ def fit_gaussian_to_samples(samples, bins='auto'):
 		return float('NaN'),float('NaN'),float('NaN')
 
 def script_core(directory: Path, force=False, n_bootstrap=0):
-	John = Bureaucrat(
+	John = SmarterBureaucrat(
 		directory,
-		variables = locals(),
+		_locals = locals(),
 	)
 
-	if force == False and John.job_successfully_completed_by_script('this script'): # If this was already done, don't do it again...
+	if force == False and John.check_required_scripts_were_run_before('this script'): # If this was already done, don't do it again...
 		return
 
-	with John.verify_no_errors_context():
+	with John.do_your_magic():
 		try:
-			measured_data_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.fd'))
+			measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
 		except FileNotFoundError:
-			measured_data_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.csv'))
+			measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
 
-		if John.job_successfully_completed_by_script('clean_beta_scan.py'): # If there was a cleaning done, let's take it into account...
-			df = pandas.read_feather(John.processed_by_script_dir_path('clean_beta_scan.py')/Path('clean_triggers.fd'))
+		if John.check_required_scripts_were_run_before('clean_beta_scan.py', raise_error=False): # If there was a cleaning done, let's take it into account...
+			df = pandas.read_feather(John.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
 			measured_data_df = remove_nans_grouping_by_n_trigger(measured_data_df)
 			measured_data_df = measured_data_df.set_index('n_trigger')
@@ -234,7 +234,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			k1k2_device_names_df['device_name'].append(device_name)
 			k1k2_device_names_df['device_number'].append(device_number)
 		k1k2_device_names_df = pandas.DataFrame(k1k2_device_names_df)
-		k1k2_device_names_df.to_csv(John.current_script_output_directory_path/Path('device_names_and_k1k2.csv'), index=False)
+		k1k2_device_names_df.to_csv(John.path_to_default_output_directory/Path('device_names_and_k1k2.csv'), index=False)
 
 		final_results_data = []
 		bootstrapped_replicas_data = []
@@ -283,7 +283,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 			fig.update_layout(
 				title = f'Time resolution vs CFD thresholds<br><sup>Measurement: {John.measurement_name}</sup>'
 			)
-			fig.write_html(str(John.processed_data_dir_path/Path(f'CFD_plot.html')), include_plotlyjs = 'cdn')
+			fig.write_html(str(John.path_to_default_output_directory/Path(f'CFD_plot.html')), include_plotlyjs = 'cdn')
 
 			fig = go.Figure()
 			fig.update_layout(
@@ -314,7 +314,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 				# ~ text = f"k MAD(Δt) = {Delta_t_fluctuations_df.loc[best_k1k2,'k MAD(Δt) (s)']*1e12:.2f} ps",
 			# ~ )
 			fig.write_html(
-				str(John.processed_data_dir_path/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')),
+				str(John.path_to_default_output_directory/Path(f'histogram k1 {best_k1k2[0]} k2 {best_k1k2[1]}.html')),
 				include_plotlyjs = 'cdn',
 			)
 
@@ -322,7 +322,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 
 		bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']] = bootstrapped_replicas_df[['k_1 (%)','k_2 (%)']].astype(int)
 
-		bootstrapped_replicas_df_file_path = John.processed_data_dir_path/Path('bootstrap_results.csv')
+		bootstrapped_replicas_df_file_path = John.path_to_default_output_directory/Path('bootstrap_results.csv')
 		if bootstrapped_replicas_df_file_path.is_file():
 			bootstrapped_replicas_df = pandas.concat(
 				[
@@ -353,11 +353,11 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 				)
 			)
 		fig.write_html(
-			str(John.processed_data_dir_path/Path(f'histogram bootstrap.html')),
+			str(John.path_to_default_output_directory/Path(f'histogram bootstrap.html')),
 			include_plotlyjs = 'cdn',
 		)
 
-		final_results_df.to_csv(John.processed_data_dir_path/Path('results.csv'), index=False)
+		final_results_df.to_csv(John.path_to_default_output_directory/Path('results.csv'), index=False)
 
 if __name__ == '__main__':
 	import argparse
