@@ -1,4 +1,4 @@
-from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
+from bureaucrat.SmarterBureaucrat import SmarterBureaucrat # https://github.com/SengerM/bureaucrat
 from pathlib import Path
 import pandas
 import plotly.graph_objects as go
@@ -80,32 +80,34 @@ def binned_fit_langauss(samples, bins='auto', nan='remove'):
 	return popt, pcov, hist, bin_centers
 
 def script_core(directory: Path, plot_waveforms:bool=False):
-	John = Bureaucrat(
+	John = SmarterBureaucrat(
 		directory,
-		variables = locals(),
-		clear_output_directory_when_initializing = True,
+		_locals = locals(),
 	)
-
-	plots_dir_path = John.processed_data_dir_path/Path('plots')
-	plots_dir_path.mkdir(exist_ok=True, parents=True)
-
-	cuts_file_path = John.measurement_base_path/Path('cuts.csv')
+	
+	John.check_required_scripts_were_run_before('beta_scan.py')
+	
+	cuts_file_path = John.path_to_measurement_base_directory/Path('cuts.csv')
 
 	try:
-		measured_data_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.fd'))
+		measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
 	except FileNotFoundError:
-		measured_data_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('measured_data.csv'))
+		measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
 
-	with John.verify_no_errors_context():
+	with John.do_your_magic():
 		try:
 			cuts_df = pandas.read_csv(cuts_file_path)
-			cuts_df.to_csv(John.processed_data_dir_path/Path(f'cuts.csv'))
-
-			filtered_triggers_df = apply_cuts(measured_data_df, cuts_df)
-			filtered_triggers_df.reset_index().to_feather(John.processed_data_dir_path/Path('clean_triggers.fd'))
 		except FileNotFoundError:
-			print(f'Cannot find `{cuts_file_path}` specifying the cuts, will accept all triggers.')
-			cuts_df = pandas.DataFrame(columns=['variable']) # Create dummy df.
+			print(f'Cannot find `{cuts_file_path}` specifying the cuts...')
+		
+		cuts_df.to_csv(John.path_to_default_output_directory/Path(f'cuts.csv'), index=False) # Make a backup.
+
+		filtered_triggers_df = apply_cuts(measured_data_df, cuts_df)
+		filtered_triggers_df.reset_index().to_feather(John.path_to_default_output_directory/Path('clean_triggers.fd'))
+		
+		# Done... Now plots! -------------------------------------------
+		plots_dir_path = John.path_to_default_output_directory/Path('plots')
+		plots_dir_path.mkdir(exist_ok=True, parents=True)
 		measured_data_df = measured_data_df.set_index('n_trigger')
 		try:
 			measured_data_df['Accepted'] = filtered_triggers_df
@@ -173,7 +175,7 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 							)
 						)
 					fig.write_html(
-						str(John.processed_data_dir_path/Path(f'{column} langauss fit.html')),
+						str(John.path_to_default_output_directory/Path(f'{column} langauss fit.html')),
 						include_plotlyjs = 'cdn',
 					)
 				if column in set(cuts_df['variable']) or column in {'Collected charge (V s)'}:
@@ -238,16 +240,16 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 					# ~ ),
 				)
 			fig.write_html(
-				str(John.processed_data_dir_path/Path('scatter_matrix.html')),
+				str(John.path_to_default_output_directory/Path('scatter_matrix.html')),
 				include_plotlyjs = 'cdn',
 			)
 
 	# Plot waveforms ---
 	if plot_waveforms == True:
 		try:
-			waveforms_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('waveforms.fd'))
+			waveforms_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('waveforms.fd'))
 		except FileNotFoundError:
-			waveforms_df = pandas.read_csv(John.processed_by_script_dir_path('beta_scan.py')/Path('waveforms.csv'))
+			waveforms_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('waveforms.csv'))
 
 		waveforms_df = waveforms_df.set_index('n_trigger')
 		try:
@@ -271,7 +273,7 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 		fig.update_yaxes(matches=None)
 		fig.update_traces(line=dict(width=1), opacity=.1)
 		fig.write_html(
-			str(John.processed_data_dir_path/Path('waveforms.html')),
+			str(John.path_to_default_output_directory/Path('waveforms.html')),
 			include_plotlyjs = 'cdn',
 		)
 
@@ -325,7 +327,7 @@ def script_core(directory: Path, plot_waveforms:bool=False):
 				)
 		fig.update_traces(showscale=False)
 		fig.write_html(
-			str(John.processed_data_dir_path/Path('waveforms_histogram.html')),
+			str(John.path_to_default_output_directory/Path('waveforms_histogram.html')),
 			include_plotlyjs = 'cdn',
 		)
 
