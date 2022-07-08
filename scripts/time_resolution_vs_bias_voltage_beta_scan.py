@@ -8,7 +8,6 @@ import grafica.plotly_utils.utils as plotly_utils
 
 from utils import read_measurement_list, get_voltage_from_measurement
 from time_resolution_beta_scan_single_voltage import script_core as time_resolution_beta_scan_single_voltage
-import measurements
 
 def script_core(directory: Path, force:bool=False, force_calculation_at_each_point:bool=False):
 	Teutónio = Bureaucrat(
@@ -24,7 +23,7 @@ def script_core(directory: Path, force:bool=False, force_calculation_at_each_poi
 		time_resolution_data = []
 		for measurement_name in read_measurement_list(Teutónio.measurement_base_path):
 			time_resolution_beta_scan_single_voltage(
-				directory = measurements.MEASUREMENTS_DATA_PATH/Path(measurement_name),
+				directory = directory.parent/Path(measurement_name),
 				force = force_calculation_at_each_point,
 				n_bootstrap = 22,
 			)
@@ -42,8 +41,8 @@ def script_core(directory: Path, force:bool=False, force_calculation_at_each_poi
 
 		time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
 
-		REFERENCE_TIME_RESOLUTION = 36.9e-12 # Speedy Gonzalez 12 Time Resolution
-		time_resolution_df['Time resolution (s)'] = (time_resolution_df['sigma from Gaussian fit (s)']**2 - REFERENCE_TIME_RESOLUTION**2)**.5
+		# ~ REFERENCE_TIME_RESOLUTION = 36.9e-12 # Speedy Gonzalez 12 Time Resolution
+		time_resolution_df['Time resolution (s)'] = time_resolution_df['sigma from Gaussian fit (s)']/2**.5
 
 		df = time_resolution_df.sort_values(by='Bias voltage (V)')
 		fig = plotly_utils.line(
@@ -73,9 +72,15 @@ if __name__ == '__main__':
 		dest = 'directory',
 		type = str,
 	)
+	parser.add_argument(
+		'--force-calculation-at-each-point',
+		help = 'If passed, the time resolution at each point will be recalculated independently of whether it was already calculated or not before.',
+		action = 'store_true',
+		dest = 'force_calculation_at_each_point',
+	)
 	args = parser.parse_args()
 	script_core(
 		Path(args.directory), 
 		force = True,
-		force_calculation_at_each_point = False,
+		force_calculation_at_each_point = args.force_calculation_at_each_point,
 	)

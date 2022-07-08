@@ -215,7 +215,7 @@ def script_core(directory: Path, force=False, n_bootstrap=0):
 		else: # If there was no cleaning, we just accept all triggers...
 			measured_data_df['accepted'] = True
 		measured_data_df = measured_data_df.query('accepted==True').copy() # From now on we drop all useless data.
-
+		
 		if len(set(measured_data_df['device_name'])) < 2:
 			raise RuntimeError(f'A time resolution calculation requires at least two devices, but this beta scan has {len(set(measured_data_df["device_name"]))} device/s.')
 		if len(set(measured_data_df['device_name'])) == 2:
