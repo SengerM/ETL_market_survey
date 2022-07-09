@@ -367,7 +367,7 @@ def process_measurement_sweeping_voltage(directory:Path, force:bool=False, force
 			if submeasurements_dict is None:
 				raise RuntimeError(f'I was expecting to find submeasurements in {Mariano.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
 			
-			time_resolution_data = []
+			jitter_data = []
 			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
 				process_single_voltage_measurement(path_to_submeasurement, force=force_submeasurements) # Recursive call...
 				Teutónio = SmarterBureaucrat(
@@ -377,38 +377,39 @@ def process_measurement_sweeping_voltage(directory:Path, force:bool=False, force
 				df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('results.csv'))
 				bootstrap_df = pandas.read_csv(Teutónio.path_to_output_directory_of_script_named('time_resolution_beta_scan.py')/Path('bootstrap_results.csv'))
 				this_measurement_error = bootstrap_df['Δt sigma from Gaussian fit (s)'].std()
-				time_resolution_data.append(
+				jitter_data.append(
 					{
-						'Δt sigma from Gaussian fit (s)': float(list(df.query('type=="estimator value on the data"')['Δt sigma from Gaussian fit (s)'])[0]),
-						'Δt sigma from Gaussian fit (s) bootstrapped error estimation': this_measurement_error,
+						'Jitter (s)': float(list(df.query('type=="estimator value on the data"')['Δt sigma from Gaussian fit (s)'])[0]),
+						'Jitter (s) error': this_measurement_error,
 						'Measurement name': measurement_name,
 						'Bias voltage (V)': int(get_voltage_from_measurement(measurement_name)[:-1]),
 					}
 				)
 
-			time_resolution_df = pandas.DataFrame.from_records(time_resolution_data)
+			jitter_df = pandas.DataFrame.from_records(jitter_data)
 
-			df = time_resolution_df.sort_values(by='Bias voltage (V)')
+			df = jitter_df.sort_values(by='Bias voltage (V)')
 			fig = plotly_utils.line(
 				title = f'Measured jitter vs bias voltage with beta source<br><sup>Measurement: {Mariano.measurement_name}</sup>',
 				data_frame = df,
 				x = 'Bias voltage (V)',
-				y = 'Δt sigma from Gaussian fit (s)',
-				error_y = 'Δt sigma from Gaussian fit (s) bootstrapped error estimation',
+				y = 'Jitter (s)',
+				error_y = 'Jitter (s) error',
 				hover_data = ['Measurement name'],
 				markers = 'circle',
 				labels = {
-					'Δt sigma from Gaussian fit (s)': '√(σ<sub>1</sub>²+σ<sub>2</sub>²) (s)',
+					'Jitter (s)': 'Jitter, i.e. √(σ<sub>1</sub>²+σ<sub>2</sub>²) (s)',
 				}
 			)
 			fig.write_html(
 				str(Mariano.path_to_default_output_directory/Path('jitter vs bias voltage.html')),
 				include_plotlyjs = 'cdn',
 			)
-			time_resolution_df.to_csv(Mariano.path_to_default_output_directory/Path('time_resolution_vs_bias_voltage.csv'))
+			jitter_df.to_csv(
+				Mariano.path_to_default_output_directory/Path('measured_jitter_vs_bias_voltage.csv'),
+				index = False,
+			)
 			
-			return
-
 def script_core(directory:Path, force:bool=False, force_submeasurements:bool=False):
 	John = SmarterBureaucrat(
 		directory,
