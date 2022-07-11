@@ -11,7 +11,7 @@ from clean_beta_scan import binned_fit_langauss
 from landaupy import langauss, landau # https://github.com/SengerM/landaupy
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
 import warnings
-from huge_dataframe.SQLiteDataFrame import load_whole_dataframe
+from huge_dataframe.SQLiteDataFrame import load_whole_dataframe # https://github.com/SengerM/huge_dataframe
 
 def hex_to_rgba(h, alpha):
     return tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha])
