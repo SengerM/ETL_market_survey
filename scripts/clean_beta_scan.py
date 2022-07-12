@@ -247,7 +247,11 @@ def script_core(directory:Path, plot_waveforms:bool=False):
 					symbol_map = {True: 'circle', False: 'x'},
 					hover_data = ['n_trigger'],
 				)
-				fig.update_traces(diagonal_visible=False, showupperhalf=False)
+				fig.update_traces(
+					diagonal_visible = False, 
+					showupperhalf = False,
+					marker = {'size': 3},
+				)
 				for k in range(len(fig.data)):
 					fig.data[k].update(
 						selected = dict(
