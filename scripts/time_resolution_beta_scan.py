@@ -8,6 +8,7 @@ import grafica.plotly_utils.utils as plotly_utils
 from scipy.stats import median_abs_deviation
 from scipy.optimize import curve_fit
 import shutil
+from huge_dataframe.SQLiteDataFrame import load_whole_dataframe # https://github.com/SengerM/huge_dataframe
 
 from utils import remove_nans_grouping_by_n_trigger, get_voltage_from_measurement
 
@@ -203,7 +204,16 @@ def process_single_voltage_measurement(directory:Path, force:bool=False):
 		try:
 			measured_data_df = pandas.read_feather(Norberto.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
 		except FileNotFoundError:
+			pass
+		try:
 			measured_data_df = pandas.read_csv(Norberto.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
+		except FileNotFoundError:
+			pass
+		try:
+			measured_data_df = load_whole_dataframe(Norberto.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.sqlite'))
+			measured_data_df.reset_index(inplace=True)
+		except Exception as e:
+			raise e
 
 		if Norberto.check_required_scripts_were_run_before('clean_beta_scan.py', raise_error=False): # If there was a cleaning done, let's take it into account...
 			shutil.copyfile( # Put a copy of the cuts in the output directory so there is a record of what was done.
@@ -368,7 +378,7 @@ def process_measurement_sweeping_voltage(directory:Path, force:bool=False, force
 				raise RuntimeError(f'I was expecting to find submeasurements in {Mariano.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
 			
 			jitter_data = []
-			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
+			for measurement_name,path_to_submeasurement in sorted(submeasurements_dict.items()):
 				process_single_voltage_measurement(path_to_submeasurement, force=force_submeasurements) # Recursive call...
 				Teutónio = SmarterBureaucrat(
 					path_to_submeasurement,
