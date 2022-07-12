@@ -109,7 +109,7 @@ def script_core(directory:Path, plot_waveforms:bool=False):
 				cuts_df = pandas.read_csv(cuts_file_path)
 			except FileNotFoundError:
 				print(f'Cannot find `{cuts_file_path}` specifying the cuts... You have to provide a CSV file specifying the cuts.')
-			cuts_df.to_csv(John.path_to_default_output_directory/Path(f'cuts.csv'), index=False) # Make a backup.
+			cuts_df.to_csv(John.path_to_default_output_directory/Path(f'cuts.backup.csv'), index=False) # Make a backup.
 			
 			try:
 				measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))

@@ -217,8 +217,8 @@ def process_single_voltage_measurement(directory:Path, force:bool=False):
 
 		if Norberto.check_required_scripts_were_run_before('clean_beta_scan.py', raise_error=False): # If there was a cleaning done, let's take it into account...
 			shutil.copyfile( # Put a copy of the cuts in the output directory so there is a record of what was done.
-				Norberto.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('cuts.csv'),
-				Norberto.path_to_default_output_directory/Path('cuts.csv')
+				Norberto.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('cuts.backup.csv'),
+				Norberto.path_to_default_output_directory/Path('cuts_that_were_applied.csv')
 			)
 			df = pandas.read_feather(Norberto.path_to_output_directory_of_script_named('clean_beta_scan.py')/Path('clean_triggers.fd'))
 			df = df.set_index('n_trigger')
