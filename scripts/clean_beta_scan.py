@@ -14,6 +14,7 @@ from scipy.optimize import curve_fit
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
 from plotly.subplots import make_subplots
 import shutil
+from huge_dataframe.SQLiteDataFrame import load_whole_dataframe # https://github.com/SengerM/huge_dataframe
 
 SET_OF_COLUMNS_TO_IGNORE = {'n_waveform','n_trigger','When','device_name','Accepted'}
 
@@ -86,36 +87,44 @@ def script_core(directory:Path, plot_waveforms:bool=False):
 		_locals = locals(),
 	)
 	
-	if John.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'):
+	if John.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'): # Multiple submeasurements.
 		submeasurements_dict = John.find_submeasurements('beta_scan_sweeping_bias_voltage.py')
 		if submeasurements_dict is None:
 			raise RuntimeError(f'I was expecting to find submeasurements in {John.path_to_output_directory_of_script_named("beta_scan_sweeping_bias_voltage.py")}, but I cant...s')
 		with John.do_your_magic():
-			for measurement_name,path_to_submeasurement in submeasurements_dict.items():
+			for measurement_name,path_to_submeasurement in sorted(submeasurements_dict.items()):
 				shutil.copyfile(
 					John.path_to_measurement_base_directory/Path('cuts.csv'),
 					path_to_submeasurement/Path('cuts.csv')
 				)
 				script_core(path_to_submeasurement, plot_waveforms) # Recursive call to this function.
 			return
-	elif John.script_was_applied_without_errors('beta_scan.py'):
-		with John.do_your_magic():
-			# Default case when the script is called on a single voltage beta scan ---
-			John.check_required_scripts_were_run_before('beta_scan.py')
+	elif John.script_was_applied_without_errors('beta_scan.py'): # Default case when the script is called on a single voltage beta scan ---
+		John.check_required_scripts_were_run_before('beta_scan.py')
 		
+		with John.do_your_magic():
 			cuts_file_path = John.path_to_measurement_base_directory/Path('cuts.csv')
-
-			try:
-				measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
-			except FileNotFoundError:
-				measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
+		
 			try:
 				cuts_df = pandas.read_csv(cuts_file_path)
 			except FileNotFoundError:
-				print(f'Cannot find `{cuts_file_path}` specifying the cuts...')
-			
+				print(f'Cannot find `{cuts_file_path}` specifying the cuts... You have to provide a CSV file specifying the cuts.')
 			cuts_df.to_csv(John.path_to_default_output_directory/Path(f'cuts.csv'), index=False) # Make a backup.
-
+			
+			try:
+				measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
+			except FileNotFoundError:
+				pass
+			try:
+				measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
+			except FileNotFoundError:
+				pass
+			try:
+				measured_data_df = load_whole_dataframe(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.sqlite'))
+				measured_data_df.reset_index(inplace=True)
+			except Exception as e:
+				raise e
+			
 			filtered_triggers_df = apply_cuts(measured_data_df, cuts_df)
 			filtered_triggers_df.reset_index().to_feather(John.path_to_default_output_directory/Path('clean_triggers.fd'))
 			
