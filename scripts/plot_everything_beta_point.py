@@ -10,6 +10,8 @@ from scipy.misc import derivative
 from clean_beta_scan import binned_fit_langauss
 from landaupy import langauss, landau # https://github.com/SengerM/landaupy
 from grafica.plotly_utils.utils import scatter_histogram # https://github.com/SengerM/grafica
+import warnings
+from huge_dataframe.SQLiteDataFrame import load_whole_dataframe # https://github.com/SengerM/huge_dataframe
 
 def hex_to_rgba(h, alpha):
     return tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha])
@@ -25,7 +27,16 @@ def script_core(directory: Path):
 	try:
 		measured_data_df = pandas.read_feather(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.fd'))
 	except FileNotFoundError:
+		pass
+	try:
 		measured_data_df = pandas.read_csv(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.csv'))
+	except FileNotFoundError:
+		pass
+	try:
+		measured_data_df = load_whole_dataframe(John.path_to_output_directory_of_script_named('beta_scan.py')/Path('measured_data.sqlite'))
+		measured_data_df.reset_index(inplace=True)
+	except FileNotFoundError:
+		raise FileNotFoundError(f'Cannot find "measured data file" for measurement {John.path_to_measurement_base_directory}.')
 	
 	for col in {'n_trigger'}:
 		measured_data_df[col] = measured_data_df[col].astype(int)
@@ -94,55 +105,57 @@ def script_core(directory: Path):
 		)
 		
 		# Fit a Landau to the collected charge ---
-		for column in measured_data_df.columns:
-			if 'collected charge' not in column.lower():
-				continue
-			fig = go.Figure()
-			fig.update_layout(
-				title = f'Langauss fit<br><sup>Measurement: {John.measurement_name}</sup>',
-				xaxis_title = column,
-				yaxis_title = 'Probability density',
-			)
-			colors = iter(px.colors.qualitative.Plotly)
-			for device_name in sorted(set(measured_data_df['device_name'])):
-				samples_for_langauss_fit = measured_data_df.query(f'device_name=={repr(device_name)}')[column].dropna()
-				popt, _, hist, bin_centers = binned_fit_langauss(samples_for_langauss_fit)
-				this_channel_color = next(colors)
-				fig.add_trace(
-					scatter_histogram(
-						samples = samples_for_langauss_fit,
-						bins = list(bin_centers - np.diff(bin_centers)[0]) + [bin_centers[-1]+np.diff(bin_centers)[-1]],
-						name = f'Data {device_name}',
-						error_y = dict(type='auto'),
-						legendgroup = device_name,
-						density = True,
-						line = dict(color = this_channel_color),
-					)
+		try:
+			for column in measured_data_df.columns:
+				if 'collected charge' not in column.lower():
+					continue
+				fig = go.Figure()
+				fig.update_layout(
+					title = f'Langauss fit<br><sup>Measurement: {John.measurement_name}</sup>',
+					xaxis_title = column,
+					yaxis_title = 'Probability density',
 				)
-				x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
-				fig.add_trace(
-					go.Scatter(
-						x = x_axis,
-						y = langauss.pdf(x_axis, *popt),
-						name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
-						line = dict(color = this_channel_color, dash='dash'),
-						legendgroup = device_name,
+				colors = iter(px.colors.qualitative.Plotly)
+				for device_name in sorted(set(measured_data_df['device_name'])):
+					samples_for_langauss_fit = measured_data_df.query(f'device_name=={repr(device_name)}')[column].dropna()
+					popt, _, hist, bin_centers = binned_fit_langauss(samples_for_langauss_fit)
+					this_channel_color = next(colors)
+					fig.add_trace(
+						scatter_histogram(
+							samples = samples_for_langauss_fit,
+							bins = list(bin_centers - np.diff(bin_centers)[0]) + [bin_centers[-1]+np.diff(bin_centers)[-1]],
+							name = f'Data {device_name}',
+							error_y = dict(type='auto'),
+							legendgroup = device_name,
+							density = True,
+							line = dict(color = this_channel_color),
+						)
 					)
-				)
-				fig.add_trace(
-					go.Scatter(
-						x = x_axis,
-						y = landau.pdf(x_axis, popt[0], popt[1]),
-						name = f'Landau component {device_name}',
-						line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .4)}', dash='dashdot'),
-						legendgroup = device_name,
+					x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
+					fig.add_trace(
+						go.Scatter(
+							x = x_axis,
+							y = langauss.pdf(x_axis, *popt),
+							name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
+							line = dict(color = this_channel_color, dash='dash'),
+							legendgroup = device_name,
+						)
 					)
+					fig.add_trace(
+						go.Scatter(
+							x = x_axis,
+							y = landau.pdf(x_axis, popt[0], popt[1]),
+							name = f'Landau component {device_name}',
+							line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .4)}', dash='dashdot'),
+							legendgroup = device_name,
+						)
+					)
+				fig.write_html(
+					str(John.path_to_default_output_directory/Path(f'{column} langauss fit.html')),
+					include_plotlyjs = 'cdn',
 				)
-			fig.write_html(
-				str(John.path_to_default_output_directory/Path(f'{column} langauss fit.html')),
-				include_plotlyjs = 'cdn',
-			)
-		
+		except Exception as e:
+			warnings.warn(f'Cannot plot Langauss fit to data, reason: {repr(e)}')
 		# ~ # Plot waveforms ---
 		# ~ try:
 			# ~ waveforms_df = pandas.read_feather(John.processed_by_script_dir_path('beta_scan.py')/Path('waveforms.fd'))
