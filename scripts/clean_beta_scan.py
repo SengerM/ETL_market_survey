@@ -15,6 +15,7 @@ from grafica.plotly_utils.utils import scatter_histogram # https://github.com/Se
 from plotly.subplots import make_subplots
 import shutil
 from huge_dataframe.SQLiteDataFrame import load_whole_dataframe # https://github.com/SengerM/huge_dataframe
+import warnings
 
 SET_OF_COLUMNS_TO_IGNORE = {'n_waveform','n_trigger','When','device_name','Accepted'}
 
@@ -160,43 +161,46 @@ def script_core(directory:Path, plot_waveforms:bool=False):
 						fig.update_layout(
 							title = f'Langauss fit on "accepted events"<br><sup>Measurement: {John.measurement_name}</sup>',
 							xaxis_title = column,
-							yaxis_title = 'Probability density',
+							yaxis_title = 'Count',
 						)
 						colors = iter(px.colors.qualitative.Plotly)
 						for device_name in sorted(set(measured_data_df['device_name'])):
-							_samples = measured_data_df.query('Accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
-							popt, _, hist, bin_centers = binned_fit_langauss(_samples)
-							this_channel_color = next(colors)
+							try:
+								_samples = measured_data_df.query('Accepted==True').query(f'device_name=={repr(device_name)}')['Collected charge (V s)']
+								popt, _, hist, bin_centers = binned_fit_langauss(_samples)
+								this_channel_color = next(colors)
 
-							fig.add_trace(
-								scatter_histogram(
-									samples = _samples,
-									error_y = dict(type='auto'),
-									density = True,
-									name = f'Data {device_name}',
-									line = dict(color = this_channel_color),
-									legendgroup = device_name,
+								fig.add_trace(
+									scatter_histogram(
+										samples = _samples,
+										error_y = dict(type='auto'),
+										density = False,
+										name = f'Data {device_name}',
+										line = dict(color = this_channel_color),
+										legendgroup = device_name,
+									)
 								)
-							)
-							x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
-							fig.add_trace(
-								go.Scatter(
-									x = x_axis,
-									y = langauss.pdf(x_axis, *popt),
-									name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
-									line = dict(color = this_channel_color, dash='dash'),
-									legendgroup = device_name,
+								x_axis = np.linspace(min(bin_centers),max(bin_centers),999)
+								fig.add_trace(
+									go.Scatter(
+										x = x_axis,
+										y = langauss.pdf(x_axis, *popt)*len(_samples)*np.diff(bin_centers)[0],
+										name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
+										line = dict(color = this_channel_color, dash='dash'),
+										legendgroup = device_name,
+									)
 								)
-							)
-							fig.add_trace(
-								go.Scatter(
-									x = x_axis,
-									y = landau.pdf(x_axis, popt[0], popt[1]),
-									name = f'Landau component {device_name}',
-									line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .3)}', dash='dashdot'),
-									legendgroup = device_name,
+								fig.add_trace(
+									go.Scatter(
+										x = x_axis,
+										y = landau.pdf(x_axis, popt[0], popt[1])*len(_samples)*np.diff(bin_centers)[0],
+										name = f'Landau component {device_name}',
+										line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .3)}', dash='dashdot'),
+										legendgroup = device_name,
+									)
 								)
-							)
+							except RuntimeError as e:
+								warnings.warn(f'Cannot fit Langauss, reason {e}')
 						fig.write_html(
 							str(John.path_to_default_output_directory/Path(f'{column} langauss fit.html')),
 							include_plotlyjs = 'cdn',
