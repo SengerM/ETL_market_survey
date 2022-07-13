@@ -82,11 +82,16 @@ def binned_fit_langauss(samples, bins='auto', nan='remove'):
 	)
 	return popt, pcov, hist, bin_centers
 
-def script_core(directory:Path, plot_waveforms:bool=False):
+def script_core(directory:Path, plot_waveforms:bool=False, cuts_file_path:Path='cuts.csv'):
 	John = SmarterBureaucrat(
 		directory,
 		_locals = locals(),
 	)
+	
+	if cuts_file_path == 'cuts.csv':
+		cuts_file_path = John.path_to_measurement_base_directory/Path('cuts.csv')
+	elif not isinstance(cuts_file_path, Path):
+		raise TypeError(f'`cuts_file_path` must be an instance of {Path}, received object of type {type(cuts_file_path)}.')
 	
 	if John.script_was_applied_without_errors('beta_scan_sweeping_bias_voltage.py'): # Multiple submeasurements.
 		submeasurements_dict = John.find_submeasurements('beta_scan_sweeping_bias_voltage.py')
@@ -95,8 +100,8 @@ def script_core(directory:Path, plot_waveforms:bool=False):
 		with John.do_your_magic():
 			for measurement_name,path_to_submeasurement in sorted(submeasurements_dict.items()):
 				shutil.copyfile(
-					John.path_to_measurement_base_directory/Path('cuts.csv'),
-					path_to_submeasurement/Path('cuts.csv')
+					cuts_file_path,
+					path_to_submeasurement/cuts_file_path.parts[-1]
 				)
 				script_core(path_to_submeasurement, plot_waveforms) # Recursive call to this function.
 			return
@@ -104,8 +109,6 @@ def script_core(directory:Path, plot_waveforms:bool=False):
 		John.check_required_scripts_were_run_before('beta_scan.py')
 		
 		with John.do_your_magic():
-			cuts_file_path = John.path_to_measurement_base_directory/Path('cuts.csv')
-		
 			try:
 				cuts_df = pandas.read_csv(cuts_file_path)
 			except FileNotFoundError:
