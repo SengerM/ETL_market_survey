@@ -127,7 +127,7 @@ def script_core(directory: Path):
 							name = f'Data {device_name}',
 							error_y = dict(type='auto'),
 							legendgroup = device_name,
-							density = True,
+							density = False,
 							line = dict(color = this_channel_color),
 						)
 					)
@@ -135,7 +135,7 @@ def script_core(directory: Path):
 					fig.add_trace(
 						go.Scatter(
 							x = x_axis,
-							y = langauss.pdf(x_axis, *popt),
+							y = langauss.pdf(x_axis, *popt)*len(samples_for_langauss_fit)*np.diff(bin_centers)[0],
 							name = f'Langauss fit {device_name}<br>x<sub>MPV</sub>={popt[0]:.2e}<br>ξ={popt[1]:.2e}<br>σ={popt[2]:.2e}',
 							line = dict(color = this_channel_color, dash='dash'),
 							legendgroup = device_name,
@@ -144,7 +144,7 @@ def script_core(directory: Path):
 					fig.add_trace(
 						go.Scatter(
 							x = x_axis,
-							y = landau.pdf(x_axis, popt[0], popt[1]),
+							y = landau.pdf(x_axis, popt[0], popt[1])*len(samples_for_langauss_fit)*np.diff(bin_centers)[0],
 							name = f'Landau component {device_name}',
 							line = dict(color = f'rgba{hex_to_rgba(this_channel_color, .4)}', dash='dashdot'),
 							legendgroup = device_name,
